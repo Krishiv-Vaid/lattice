@@ -1,7 +1,7 @@
 import random
 
-from lattice import Value
-
+from lattice.tensor import Tensor
+from lattice.value import Value
 
 class Module:
     def parameters(self):
@@ -9,7 +9,10 @@ class Module:
 
     def zero_grad(self):
         for parameter in self.parameters():
-            parameter.grad = 0.0
+            if hasattr(parameter, "zero_grad"):
+                parameter.zero_grad()
+            else:
+                parameter.grad = 0.0
 
 
 class Neuron(Module):
@@ -35,6 +38,95 @@ class Neuron(Module):
 
     def parameters(self):
         return self.weights + [self.bias]
+    
+class Linear(Module):
+    def __init__(
+        self,
+        in_features,
+        out_features,
+        bias=True,
+    ):
+        if not isinstance(in_features, int):
+            raise TypeError(
+                "in_features must be an integer"
+            )
+
+        if not isinstance(out_features, int):
+            raise TypeError(
+                "out_features must be an integer"
+            )
+
+        if in_features <= 0:
+            raise ValueError(
+                "in_features must be positive"
+            )
+
+        if out_features <= 0:
+            raise ValueError(
+                "out_features must be positive"
+            )
+
+        self.in_features = in_features
+        self.out_features = out_features
+
+        scale = 1.0 / (in_features ** 0.5)
+
+        weight_data = [
+            [
+                random.uniform(
+                    -scale,
+                    scale,
+                )
+                for _ in range(out_features)
+            ]
+            for _ in range(in_features)
+        ]
+
+        self.weight = Tensor(
+            weight_data,
+            requires_grad=True,
+        )
+
+        if bias:
+            self.bias = Tensor(
+                [0.0] * out_features,
+                requires_grad=True,
+            )
+        else:
+            self.bias = None
+
+    def __call__(self, x):
+        if not isinstance(x, Tensor):
+            raise TypeError(
+                "Linear input must be a Tensor"
+            )
+
+        if x.ndim != 2:
+            raise ValueError(
+                "Linear currently expects a 2D Tensor"
+            )
+
+        if x.shape[1] != self.in_features:
+            raise ValueError(
+                f"Expected input with "
+                f"{self.in_features} features, "
+                f"got {x.shape[1]}"
+            )
+
+        output = x @ self.weight
+
+        if self.bias is not None:
+            output = output + self.bias
+
+        return output
+
+    def parameters(self):
+        parameters = [self.weight]
+
+        if self.bias is not None:
+            parameters.append(self.bias)
+
+        return parameters
 
 
 class Layer(Module):
@@ -131,6 +223,7 @@ class MSELoss:
 
 __all__ = [
     "Module",
+    "Linear",
     "Neuron",
     "Layer",
     "MLP",

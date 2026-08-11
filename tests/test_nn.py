@@ -1,6 +1,7 @@
 from lattice.nn import Layer, MLP, MSELoss, Module, Neuron
 from lattice.value import Value
-
+from lattice.tensor import Tensor
+from lattice.nn import Linear
 
 def test_module_has_no_parameters_by_default():
     module = Module()
@@ -189,3 +190,182 @@ def test_mse_loss_backward():
     loss.backward()
 
     assert prediction.grad == -4.0
+    
+def test_tensor_linear_parameters():
+    linear = Linear(
+        2,
+        3,
+    )
+
+    parameters = linear.parameters()
+
+    assert len(parameters) == 2
+
+    assert parameters[0] is linear.weight
+    assert parameters[1] is linear.bias
+
+    assert linear.weight.shape == (2, 3)
+    assert linear.bias.shape == (3,)
+
+    assert linear.weight.requires_grad
+    assert linear.bias.requires_grad
+
+
+def test_tensor_linear_forward():
+    linear = Linear(
+        2,
+        3,
+    )
+
+    linear.weight = Tensor(
+        [
+            [1.0, 2.0, 3.0],
+            [4.0, 5.0, 6.0],
+        ],
+        requires_grad=True,
+    )
+
+    linear.bias = Tensor(
+        [10.0, 20.0, 30.0],
+        requires_grad=True,
+    )
+
+    x = Tensor([
+        [1.0, 2.0],
+        [3.0, 4.0],
+    ])
+
+    output = linear(x)
+
+    assert output.shape == (2, 3)
+
+    assert output.data == [
+        19.0,
+        32.0,
+        45.0,
+        29.0,
+        46.0,
+        63.0,
+    ]
+
+
+def test_tensor_linear_backward():
+    linear = Linear(
+        2,
+        3,
+    )
+
+    linear.weight = Tensor(
+        [
+            [1.0, 2.0, 3.0],
+            [4.0, 5.0, 6.0],
+        ],
+        requires_grad=True,
+    )
+
+    linear.bias = Tensor(
+        [10.0, 20.0, 30.0],
+        requires_grad=True,
+    )
+
+    x = Tensor([
+        [1.0, 2.0],
+        [3.0, 4.0],
+    ])
+
+    loss = linear(x).sum()
+
+    loss.backward()
+
+    assert linear.weight.grad == [
+        4.0,
+        4.0,
+        4.0,
+        6.0,
+        6.0,
+        6.0,
+    ]
+
+    assert linear.bias.grad == [
+        2.0,
+        2.0,
+        2.0,
+    ]
+
+
+def test_tensor_linear_without_bias():
+    linear = Linear(
+        2,
+        2,
+        bias=False,
+    )
+
+    linear.weight = Tensor(
+        [
+            [1.0, 2.0],
+            [3.0, 4.0],
+        ],
+        requires_grad=True,
+    )
+
+    x = Tensor([
+        [1.0, 2.0],
+    ])
+
+    output = linear(x)
+
+    assert linear.bias is None
+    assert len(linear.parameters()) == 1
+
+    assert output.data == [
+        7.0,
+        10.0,
+    ]
+
+
+def test_tensor_module_zero_grad():
+    linear = Linear(
+        2,
+        1,
+    )
+
+    linear.weight = Tensor(
+        [
+            [1.0],
+            [2.0],
+        ],
+        requires_grad=True,
+    )
+
+    linear.bias = Tensor(
+        [0.0],
+        requires_grad=True,
+    )
+
+    x = Tensor([
+        [1.0, 2.0],
+    ])
+
+    loss = linear(x).sum()
+
+    loss.backward()
+
+    assert linear.weight.grad != [
+        0.0,
+        0.0,
+    ]
+
+    assert linear.bias.grad != [
+        0.0,
+    ]
+
+    linear.zero_grad()
+
+    assert linear.weight.grad == [
+        0.0,
+        0.0,
+    ]
+
+    assert linear.bias.grad == [
+        0.0,
+    ]
