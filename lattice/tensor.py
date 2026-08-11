@@ -1697,3 +1697,87 @@ class Tensor:
             out._backward = _backward
 
         return out
+    
+    def argmax(self, dim=None):
+        if self.numel == 0:
+            raise ValueError(
+                "argmax is undefined for an empty tensor"
+            )
+
+        if dim is None:
+            best_flat = 0
+            best_value = self.data[
+                self._storage_index(
+                    tuple(
+                        0
+                        for _ in range(self.ndim)
+                    )
+                )
+            ] if self.ndim > 0 else self.data[self.offset]
+
+            for flat, index in enumerate(
+                self._iter_indices()
+            ):
+                value = self[index]
+
+                if value > best_value:
+                    best_value = value
+                    best_flat = flat
+
+            return best_flat
+
+        dim = self._normalize_dimension(dim)
+
+        result_shape = (
+            self.shape[:dim]
+            + self.shape[dim + 1:]
+        )
+
+        result_data = []
+
+        for output_index in self._iter_shape_indices(
+            result_shape
+        ):
+            best_index = 0
+
+            full_index = list(output_index)
+            full_index.insert(
+                dim,
+                0,
+            )
+
+            best_value = self[
+                tuple(full_index)
+            ]
+
+            for dim_index in range(
+                1,
+                self.shape[dim]
+            ):
+                full_index = list(output_index)
+                full_index.insert(
+                    dim,
+                    dim_index,
+                )
+
+                value = self[
+                    tuple(full_index)
+                ]
+
+                if value > best_value:
+                    best_value = value
+                    best_index = dim_index
+
+            result_data.append(
+                float(best_index)
+            )
+
+        return Tensor._from_storage(
+            data=result_data,
+            shape=result_shape,
+            strides=self._compute_strides(
+                result_shape
+            ),
+            offset=0,
+            requires_grad=False,
+        )

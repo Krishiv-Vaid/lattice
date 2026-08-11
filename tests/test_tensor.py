@@ -1453,3 +1453,70 @@ def test_matmul_result_is_contiguous():
     assert result.is_contiguous
     assert result.offset == 0
     assert result.strides == (2, 1)
+    
+def test_argmax_all_elements():
+    tensor = Tensor([
+        [1.0, 9.0],
+        [3.0, 4.0],
+    ])
+
+    assert tensor.argmax() == 1
+
+
+def test_argmax_dim_zero():
+    tensor = Tensor([
+        [1.0, 5.0, 3.0],
+        [4.0, 2.0, 6.0],
+    ])
+
+    result = tensor.argmax(dim=0)
+
+    assert result.shape == (3,)
+
+    assert result.data == [
+        1.0,
+        0.0,
+        1.0,
+    ]
+
+
+def test_argmax_dim_one():
+    tensor = Tensor([
+        [1.0, 5.0, 3.0],
+        [4.0, 2.0, 6.0],
+    ])
+
+    result = tensor.argmax(dim=1)
+
+    assert result.shape == (2,)
+
+    assert result.data == [
+        1.0,
+        2.0,
+    ]
+
+
+def test_argmax_negative_dimension():
+    tensor = Tensor([
+        [1.0, 5.0, 3.0],
+        [4.0, 2.0, 6.0],
+    ])
+
+    result = tensor.argmax(dim=-1)
+
+    assert result.data == [
+        1.0,
+        2.0,
+    ]
+
+
+def test_argmax_returns_first_maximum():
+    tensor = Tensor([
+        [5.0, 5.0, 1.0],
+    ])
+
+    result = tensor.argmax(dim=1)
+
+    assert result.data == [
+        0.0,
+    ]
