@@ -136,6 +136,31 @@ class Tensor:
 
         yield from recurse(0, [])
 
+    @staticmethod
+    def _iter_shape_indices(shape):
+        if not shape:
+            yield ()
+            return
+
+        def recurse(dimension, prefix):
+            if dimension == len(shape):
+                yield tuple(prefix)
+                return
+
+            for index in range(
+                shape[dimension]
+            ):
+                prefix.append(index)
+
+                yield from recurse(
+                    dimension + 1,
+                    prefix
+                )
+
+                prefix.pop()
+
+        yield from recurse(0, [])
+
     def _storage_index(self, indices):
         if not isinstance(indices, tuple):
             indices = (indices,)
@@ -463,6 +488,85 @@ class Tensor:
             ),
             offset=0,
         )
+
+    def _reduce(self, dim, operation, initial):
+        if dim is None:
+            result = initial
+
+            for index in self._iter_indices():
+                result = operation(
+                    result,
+                    self[index],
+                )
+
+            return result
+
+        dim = self._normalize_dimension(dim)
+
+        result_shape = (
+            self.shape[:dim]
+            + self.shape[dim + 1:]
+        )
+
+        result_data = []
+
+        for output_index in self._iter_shape_indices(
+            result_shape
+        ):
+            total = initial
+
+            for reduced_index in range(
+                self.shape[dim]
+            ):
+                full_index = list(output_index)
+
+                full_index.insert(
+                    dim,
+                    reduced_index,
+                )
+
+                total = operation(
+                    total,
+                    self[tuple(full_index)],
+                )
+
+            result_data.append(total)
+
+        return Tensor._from_storage(
+            data=result_data,
+            shape=result_shape,
+            strides=self._compute_strides(
+                result_shape
+            ),
+            offset=0,
+        )
+
+    def sum(self, dim=None):
+        return self._reduce(
+            dim=dim,
+            operation=lambda a, b: a + b,
+            initial=0.0,
+        )
+
+    def mean(self, dim=None):
+        if dim is None:
+            if self.numel == 0:
+                raise ValueError(
+                    "mean of an empty tensor is undefined"
+                )
+
+            return self.sum() / self.numel
+
+        dim = self._normalize_dimension(dim)
+
+        if self.shape[dim] == 0:
+            raise ValueError(
+                "mean of an empty dimension is undefined"
+            )
+
+        summed = self.sum(dim=dim)
+
+        return summed / self.shape[dim]
 
     def __add__(self, other):
         return self._elementwise_binary_op(

@@ -1085,3 +1085,183 @@ def test_broadcast_with_transpose():
         24.0,
         36.0,
     ]
+    
+def test_sum_all_elements():
+    tensor = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+    ])
+
+    result = tensor.sum()
+
+    assert result == 21.0
+
+
+def test_mean_all_elements():
+    tensor = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+    ])
+
+    result = tensor.mean()
+
+    assert result == 3.5
+
+
+def test_sum_dim_zero():
+    tensor = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+    ])
+
+    result = tensor.sum(dim=0)
+
+    assert result.shape == (3,)
+
+    assert result.data == [
+        5.0,
+        7.0,
+        9.0,
+    ]
+
+
+def test_sum_dim_one():
+    tensor = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+    ])
+
+    result = tensor.sum(dim=1)
+
+    assert result.shape == (2,)
+
+    assert result.data == [
+        6.0,
+        15.0,
+    ]
+
+
+def test_mean_dim_zero():
+    tensor = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+    ])
+
+    result = tensor.mean(dim=0)
+
+    assert result.shape == (3,)
+
+    assert result.data == [
+        2.5,
+        3.5,
+        4.5,
+    ]
+
+
+def test_mean_dim_one():
+    tensor = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+    ])
+
+    result = tensor.mean(dim=1)
+
+    assert result.shape == (2,)
+
+    assert result.data == [
+        2.0,
+        5.0,
+    ]
+
+
+def test_reduction_negative_dimension():
+    tensor = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+    ])
+
+    result = tensor.sum(dim=-1)
+
+    assert result.data == [
+        6.0,
+        15.0,
+    ]
+
+
+def test_sum_transposed_tensor():
+    tensor = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+    ])
+
+    transposed = tensor.T
+
+    result = transposed.sum(dim=1)
+
+    assert result.shape == (3,)
+
+    assert result.data == [
+        5.0,
+        7.0,
+        9.0,
+    ]
+
+
+def test_sum_sliced_tensor():
+    tensor = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+        [7.0, 8.0, 9.0],
+    ])
+
+    view = tensor[1:, 1:]
+
+    assert view.sum() == 28.0
+
+
+def test_sum_broadcasted_tensor():
+    tensor = Tensor([
+        10.0,
+        20.0,
+        30.0,
+    ])
+
+    view = tensor.broadcast_to(
+        (2, 3)
+    )
+
+    assert view.sum() == 120.0
+
+
+def test_three_dimensional_reduction():
+    tensor = Tensor([
+        [
+            [1.0, 2.0],
+            [3.0, 4.0],
+        ],
+        [
+            [5.0, 6.0],
+            [7.0, 8.0],
+        ],
+    ])
+
+    result = tensor.sum(dim=1)
+
+    assert result.shape == (2, 2)
+
+    assert result.data == [
+        4.0,
+        6.0,
+        12.0,
+        14.0,
+    ]
+
+
+def test_invalid_reduction_dimension():
+    tensor = Tensor([
+        [1.0, 2.0],
+        [3.0, 4.0],
+    ])
+
+    with pytest.raises(IndexError):
+        tensor.sum(dim=2)
