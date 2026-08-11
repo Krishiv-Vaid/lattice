@@ -1,6 +1,9 @@
+import pytest
+
 from lattice.optim import SGD
 from lattice.tensor import Tensor
 from lattice.value import Value
+from lattice.optim import Adam, SGD
 
 
 def test_sgd_step():
@@ -163,3 +166,154 @@ def test_sgd_rejects_nonpositive_learning_rate():
 
     except ValueError:
         pass
+    
+def test_adam_tensor_first_step():
+    parameter = Tensor(
+        [1.0],
+        requires_grad=True,
+    )
+
+    parameter.grad = [
+        2.0,
+    ]
+
+    optimizer = Adam(
+        [parameter],
+        lr=0.1,
+    )
+
+    optimizer.step()
+
+    assert parameter.data[0] == pytest.approx(
+        0.9,
+        abs=1e-7,
+    )
+
+
+def test_adam_tensor_multiple_steps():
+    parameter = Tensor(
+        [1.0],
+        requires_grad=True,
+    )
+
+    optimizer = Adam(
+        [parameter],
+        lr=0.1,
+    )
+
+    for _ in range(2):
+        parameter.grad = [
+            2.0,
+        ]
+
+        optimizer.step()
+
+    assert parameter.data[0] == pytest.approx(
+        0.8,
+        abs=1e-7,
+    )
+
+
+def test_adam_multiple_tensor_elements():
+    parameter = Tensor(
+        [
+            1.0,
+            2.0,
+            3.0,
+        ],
+        requires_grad=True,
+    )
+
+    parameter.grad = [
+        1.0,
+        -1.0,
+        2.0,
+    ]
+
+    optimizer = Adam(
+        [parameter],
+        lr=0.1,
+    )
+
+    optimizer.step()
+
+    assert parameter.data == pytest.approx([
+        0.9,
+        2.1,
+        2.9,
+    ])
+
+
+def test_adam_zero_grad():
+    parameter = Tensor(
+        [
+            1.0,
+            2.0,
+        ],
+        requires_grad=True,
+    )
+
+    parameter.grad = [
+        3.0,
+        4.0,
+    ]
+
+    optimizer = Adam(
+        [parameter],
+    )
+
+    optimizer.zero_grad()
+
+    assert parameter.grad == [
+        0.0,
+        0.0,
+    ]
+
+
+def test_adam_value_parameter():
+    parameter = Value(1.0)
+
+    parameter.grad = 2.0
+
+    optimizer = Adam(
+        [parameter],
+        lr=0.1,
+    )
+
+    optimizer.step()
+
+    assert parameter.data == pytest.approx(
+        0.9,
+        abs=1e-7,
+    )
+
+
+def test_adam_rejects_invalid_hyperparameters():
+    parameter = Tensor(
+        [1.0],
+        requires_grad=True,
+    )
+
+    with pytest.raises(ValueError):
+        Adam(
+            [parameter],
+            lr=0.0,
+        )
+
+    with pytest.raises(ValueError):
+        Adam(
+            [parameter],
+            beta1=1.0,
+        )
+
+    with pytest.raises(ValueError):
+        Adam(
+            [parameter],
+            beta2=1.0,
+        )
+
+    with pytest.raises(ValueError):
+        Adam(
+            [parameter],
+            eps=0.0,
+        )
