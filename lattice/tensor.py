@@ -262,6 +262,42 @@ class Tensor:
 
         return tuple(reversed(result))
 
+    @staticmethod
+    def _broadcast_index(
+        result_index,
+        original_shape,
+    ):
+        if not original_shape:
+            return ()
+
+        extra_dimensions = (
+            len(result_index)
+            - len(original_shape)
+        )
+
+        padded_shape = (
+            (1,) * extra_dimensions
+            + original_shape
+        )
+
+        mapped_index = []
+
+        for index, dimension_size in zip(
+            result_index,
+            padded_shape,
+        ):
+            if dimension_size == 1:
+                mapped_index.append(0)
+            else:
+                mapped_index.append(index)
+
+        if extra_dimensions:
+            mapped_index = mapped_index[
+                extra_dimensions:
+            ]
+
+        return tuple(mapped_index)
+
     def _accumulate_grad(
         self,
         indices,
@@ -536,18 +572,6 @@ class Tensor:
             )
 
             if requires_grad:
-                if self.shape != result_shape:
-                    raise NotImplementedError(
-                        "Autograd through broadcasting "
-                        "is not implemented yet"
-                    )
-
-                if other.shape != result_shape:
-                    raise NotImplementedError(
-                        "Autograd through broadcasting "
-                        "is not implemented yet"
-                    )
-
                 def _backward():
                     for index in out._iter_indices():
                         out_flat = (
@@ -561,32 +585,46 @@ class Tensor:
                         ]
 
                         if self.requires_grad:
+                            self_index = (
+                                self._broadcast_index(
+                                    index,
+                                    self.shape,
+                                )
+                            )
+
                             if op_name == "+":
                                 local = 1.0
 
                             elif op_name == "*":
-                                local = other[index]
+                                local = right[index]
 
                             else:
                                 local = 0.0
 
                             self._accumulate_grad(
-                                index,
+                                self_index,
                                 local * upstream,
                             )
 
                         if other.requires_grad:
+                            other_index = (
+                                self._broadcast_index(
+                                    index,
+                                    other.shape,
+                                )
+                            )
+
                             if op_name == "+":
                                 local = 1.0
 
                             elif op_name == "*":
-                                local = self[index]
+                                local = left[index]
 
                             else:
                                 local = 0.0
 
                             other._accumulate_grad(
-                                index,
+                                other_index,
                                 local * upstream,
                             )
 
