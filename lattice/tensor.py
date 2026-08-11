@@ -66,54 +66,6 @@ class Tensor:
 
         return tuple(strides)
 
-    def _normalize_indices(self, indices):
-        if not isinstance(indices, tuple):
-            indices = (indices,)
-
-        if len(indices) != self.ndim:
-            raise IndexError(
-                f"Expected {self.ndim} indices, "
-                f"got {len(indices)}"
-            )
-
-        normalized = []
-
-        for index, dimension_size in zip(
-            indices,
-            self.shape
-        ):
-            if not isinstance(index, int):
-                raise TypeError(
-                    "Tensor indices must be integers"
-                )
-
-            if index < 0:
-                index += dimension_size
-
-            if index < 0 or index >= dimension_size:
-                raise IndexError(
-                    "Tensor index out of range"
-                )
-
-            normalized.append(index)
-
-        return tuple(normalized)
-
-    def _storage_index(self, indices):
-        indices = self._normalize_indices(
-            indices
-        )
-
-        storage_index = self.offset
-
-        for index, stride in zip(
-            indices,
-            self.strides
-        ):
-            storage_index += index * stride
-
-        return storage_index
-
     def _normalize_dimension(self, dimension):
         if not isinstance(dimension, int):
             raise TypeError(
@@ -129,6 +81,36 @@ class Tensor:
             )
 
         return dimension
+
+    def _normalize_integer_index(
+        self,
+        index,
+        dimension_size,
+    ):
+        if index < 0:
+            index += dimension_size
+
+        if index < 0 or index >= dimension_size:
+            raise IndexError(
+                "Tensor index out of range"
+            )
+
+        return index
+
+    def _normalize_key(self, key):
+        if not isinstance(key, tuple):
+            key = (key,)
+
+        if len(key) > self.ndim:
+            raise IndexError(
+                "Too many indices for tensor"
+            )
+
+        key = key + (
+            slice(None),
+        ) * (self.ndim - len(key))
+
+        return key
 
     def _iter_indices(self):
         if self.ndim == 0:
@@ -154,12 +136,98 @@ class Tensor:
 
         yield from recurse(0, [])
 
-    def __getitem__(self, indices):
-        storage_index = self._storage_index(
-            indices
-        )
+    def _storage_index(self, indices):
+        if not isinstance(indices, tuple):
+            indices = (indices,)
 
-        return self.data[storage_index]
+        if len(indices) != self.ndim:
+            raise IndexError(
+                f"Expected {self.ndim} indices, "
+                f"got {len(indices)}"
+            )
+
+        storage_index = self.offset
+
+        for index, dimension_size, stride in zip(
+            indices,
+            self.shape,
+            self.strides,
+        ):
+            if not isinstance(index, int):
+                raise TypeError(
+                    "Tensor indices must be integers"
+                )
+
+            index = self._normalize_integer_index(
+                index,
+                dimension_size,
+            )
+
+            storage_index += index * stride
+
+        return storage_index
+
+    def __getitem__(self, key):
+        key = self._normalize_key(key)
+
+        new_shape = []
+        new_strides = []
+
+        new_offset = self.offset
+
+        contains_slice = False
+
+        for item, dimension_size, stride in zip(
+            key,
+            self.shape,
+            self.strides,
+        ):
+            if isinstance(item, int):
+                index = self._normalize_integer_index(
+                    item,
+                    dimension_size,
+                )
+
+                new_offset += index * stride
+
+            elif isinstance(item, slice):
+                contains_slice = True
+
+                start, stop, step = item.indices(
+                    dimension_size
+                )
+
+                if step <= 0:
+                    raise ValueError(
+                        "negative and zero slice steps "
+                        "are not supported yet"
+                    )
+
+                length = len(
+                    range(start, stop, step)
+                )
+
+                new_offset += start * stride
+                new_shape.append(length)
+                new_strides.append(
+                    stride * step
+                )
+
+            else:
+                raise TypeError(
+                    "Tensor indices must be "
+                    "integers or slices"
+                )
+
+        if not contains_slice:
+            return self.data[new_offset]
+
+        return Tensor._from_storage(
+            data=self.data,
+            shape=new_shape,
+            strides=new_strides,
+            offset=new_offset,
+        )
 
     def __setitem__(self, indices, value):
         storage_index = self._storage_index(

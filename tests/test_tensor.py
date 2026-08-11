@@ -149,14 +149,14 @@ def test_index_out_of_range():
         _ = tensor[2, 0]
 
 
-def test_wrong_number_of_indices():
+def test_too_many_indices():
     tensor = Tensor([
         [1.0, 2.0],
         [3.0, 4.0],
     ])
 
     with pytest.raises(IndexError):
-        _ = tensor[0]
+        _ = tensor[0, 0, 0]
 
 
 def test_non_integer_index():
@@ -433,3 +433,188 @@ def test_reshape_after_contiguous():
         3.0,
         6.0,
     ]
+    
+def test_row_slice():
+    tensor = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+    ])
+
+    row = tensor[1, :]
+
+    assert row.shape == (3,)
+    assert row.strides == (1,)
+    assert row.offset == 3
+
+    assert row[0] == 4.0
+    assert row[1] == 5.0
+    assert row[2] == 6.0
+
+
+def test_column_slice():
+    tensor = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+    ])
+
+    column = tensor[:, 1]
+
+    assert column.shape == (2,)
+    assert column.strides == (3,)
+    assert column.offset == 1
+
+    assert column[0] == 2.0
+    assert column[1] == 5.0
+
+
+def test_submatrix_slice():
+    tensor = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+        [7.0, 8.0, 9.0],
+    ])
+
+    view = tensor[1:, 1:]
+
+    assert view.shape == (2, 2)
+    assert view.strides == (3, 1)
+    assert view.offset == 4
+
+    assert view[0, 0] == 5.0
+    assert view[0, 1] == 6.0
+    assert view[1, 0] == 8.0
+    assert view[1, 1] == 9.0
+
+
+def test_slice_shares_storage():
+    tensor = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+    ])
+
+    row = tensor[1, :]
+
+    assert row.data is tensor.data
+
+    row[0] = 99.0
+
+    assert tensor[1, 0] == 99.0
+
+
+def test_slice_with_step():
+    tensor = Tensor([
+        10.0,
+        20.0,
+        30.0,
+        40.0,
+        50.0,
+        60.0,
+    ])
+
+    view = tensor[::2]
+
+    assert view.shape == (3,)
+    assert view.strides == (2,)
+    assert view.offset == 0
+
+    assert view[0] == 10.0
+    assert view[1] == 30.0
+    assert view[2] == 50.0
+
+
+def test_slice_with_start_and_stop():
+    tensor = Tensor([
+        10.0,
+        20.0,
+        30.0,
+        40.0,
+        50.0,
+    ])
+
+    view = tensor[1:4]
+
+    assert view.shape == (3,)
+    assert view.strides == (1,)
+    assert view.offset == 1
+
+    assert view[0] == 20.0
+    assert view[2] == 40.0
+
+
+def test_missing_dimensions_become_full_slices():
+    tensor = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+    ])
+
+    view = tensor[1]
+
+    assert isinstance(view, Tensor)
+
+    assert view.shape == (3,)
+    assert view.offset == 3
+
+    assert view[0] == 4.0
+    assert view[2] == 6.0
+
+
+def test_slice_of_transpose():
+    tensor = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+    ])
+
+    transposed = tensor.T
+
+    view = transposed[1:, :]
+
+    assert view.shape == (2, 2)
+
+    assert view[0, 0] == 2.0
+    assert view[0, 1] == 5.0
+    assert view[1, 0] == 3.0
+    assert view[1, 1] == 6.0
+
+    assert view.data is tensor.data
+
+
+def test_strided_slice_is_not_contiguous():
+    tensor = Tensor([
+        1.0,
+        2.0,
+        3.0,
+        4.0,
+        5.0,
+        6.0,
+    ])
+
+    view = tensor[::2]
+
+    assert not view.is_contiguous
+
+
+def test_contiguous_from_slice():
+    tensor = Tensor([
+        1.0,
+        2.0,
+        3.0,
+        4.0,
+        5.0,
+        6.0,
+    ])
+
+    view = tensor[::2]
+
+    contiguous = view.contiguous()
+
+    assert contiguous.data == [
+        1.0,
+        3.0,
+        5.0,
+    ]
+
+    assert contiguous.shape == (3,)
+    assert contiguous.strides == (1,)
+    assert contiguous.offset == 0
+
+    assert contiguous.data is not tensor.data
