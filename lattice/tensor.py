@@ -845,17 +845,79 @@ class Tensor:
 
         dim = self._normalize_dimension(dim)
 
-        if self.requires_grad:
-            raise NotImplementedError(
-                "Autograd for dimension-specific "
-                "reductions is not implemented yet"
-            )
-
-        return self._reduce_forward(
-            dim=dim,
-            operation=lambda a, b: a + b,
-            initial=0.0,
+        result_shape = (
+            self.shape[:dim]
+            + self.shape[dim + 1:]
         )
+
+        result_data = []
+
+        for output_index in self._iter_shape_indices(
+            result_shape
+        ):
+            total = 0.0
+
+            for reduced_index in range(
+                self.shape[dim]
+            ):
+                full_index = list(output_index)
+
+                full_index.insert(
+                    dim,
+                    reduced_index,
+                )
+
+                total += self[
+                    tuple(full_index)
+                ]
+
+            result_data.append(total)
+
+        out = Tensor._from_storage(
+            data=result_data,
+            shape=result_shape,
+            strides=self._compute_strides(
+                result_shape
+            ),
+            offset=0,
+            requires_grad=self.requires_grad,
+            _children=(self,),
+            _op="sum",
+        )
+
+        if self.requires_grad:
+            def _backward():
+                for output_index in out._iter_indices():
+                    out_flat = (
+                        out._flat_logical_index(
+                            output_index
+                        )
+                    )
+
+                    upstream = out.grad[
+                        out_flat
+                    ]
+
+                    for reduced_index in range(
+                        self.shape[dim]
+                    ):
+                        full_index = list(
+                            output_index
+                        )
+
+                        full_index.insert(
+                            dim,
+                            reduced_index,
+                        )
+
+                        self._accumulate_grad(
+                            tuple(full_index),
+                            upstream,
+                        )
+
+            out._backward = _backward
+
+        return out
 
     def mean(self, dim=None):
         if dim is None:
@@ -871,12 +933,6 @@ class Tensor:
         if self.shape[dim] == 0:
             raise ValueError(
                 "mean of an empty dimension is undefined"
-            )
-
-        if self.requires_grad:
-            raise NotImplementedError(
-                "Autograd for dimension-specific "
-                "reductions is not implemented yet"
             )
 
         return (

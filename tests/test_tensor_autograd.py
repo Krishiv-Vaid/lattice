@@ -426,3 +426,218 @@ def test_multidimensional_broadcast_backward():
         6.0,
         6.0,
     ]
+    
+def test_sum_dim_zero_backward():
+    x = Tensor(
+        [
+            [1.0, 2.0, 3.0],
+            [4.0, 5.0, 6.0],
+        ],
+        requires_grad=True,
+    )
+
+    reduced = x.sum(dim=0)
+
+    weights = Tensor([
+        10.0,
+        20.0,
+        30.0,
+    ])
+
+    loss = (reduced * weights).sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        10.0,
+        20.0,
+        30.0,
+        10.0,
+        20.0,
+        30.0,
+    ]
+
+
+def test_sum_dim_one_backward():
+    x = Tensor(
+        [
+            [1.0, 2.0, 3.0],
+            [4.0, 5.0, 6.0],
+        ],
+        requires_grad=True,
+    )
+
+    reduced = x.sum(dim=1)
+
+    weights = Tensor([
+        10.0,
+        20.0,
+    ])
+
+    loss = (reduced * weights).sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        10.0,
+        10.0,
+        10.0,
+        20.0,
+        20.0,
+        20.0,
+    ]
+
+
+def test_mean_dim_zero_backward():
+    x = Tensor(
+        [
+            [1.0, 2.0, 3.0],
+            [4.0, 5.0, 6.0],
+        ],
+        requires_grad=True,
+    )
+
+    loss = x.mean(dim=0).sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        0.5,
+        0.5,
+        0.5,
+        0.5,
+        0.5,
+        0.5,
+    ]
+
+
+def test_mean_dim_one_backward():
+    x = Tensor(
+        [
+            [1.0, 2.0, 3.0],
+            [4.0, 5.0, 6.0],
+        ],
+        requires_grad=True,
+    )
+
+    loss = x.mean(dim=1).sum()
+
+    loss.backward()
+
+    expected = 1.0 / 3.0
+
+    assert x.grad == [
+        expected,
+        expected,
+        expected,
+        expected,
+        expected,
+        expected,
+    ]
+
+
+def test_negative_dimension_reduction_backward():
+    x = Tensor(
+        [
+            [1.0, 2.0, 3.0],
+            [4.0, 5.0, 6.0],
+        ],
+        requires_grad=True,
+    )
+
+    loss = x.sum(dim=-1).sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+    ]
+
+
+def test_three_dimensional_reduction_backward():
+    x = Tensor(
+        [
+            [
+                [1.0, 2.0],
+                [3.0, 4.0],
+            ],
+            [
+                [5.0, 6.0],
+                [7.0, 8.0],
+            ],
+        ],
+        requires_grad=True,
+    )
+
+    reduced = x.sum(dim=1)
+
+    weights = Tensor([
+        [10.0, 20.0],
+        [30.0, 40.0],
+    ])
+
+    loss = (reduced * weights).sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        10.0,
+        20.0,
+        10.0,
+        20.0,
+        30.0,
+        40.0,
+        30.0,
+        40.0,
+    ]
+
+
+def test_one_dimensional_sum_dim_backward():
+    x = Tensor(
+        [1.0, 2.0, 3.0],
+        requires_grad=True,
+    )
+
+    loss = x.sum(dim=0)
+
+    assert loss.shape == ()
+
+    loss.backward()
+
+    assert x.grad == [
+        1.0,
+        1.0,
+        1.0,
+    ]
+
+
+def test_reduction_backward_chain_rule():
+    x = Tensor(
+        [
+            [1.0, 2.0, 3.0],
+            [4.0, 5.0, 6.0],
+        ],
+        requires_grad=True,
+    )
+
+    row_sums = x.sum(dim=1)
+
+    squared = row_sums * row_sums
+
+    loss = squared.sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        12.0,
+        12.0,
+        12.0,
+        30.0,
+        30.0,
+        30.0,
+    ]
