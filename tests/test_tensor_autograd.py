@@ -1078,3 +1078,208 @@ def test_reshape_chain_backward():
         6.0,
         8.0,
     ]
+    
+def test_slice_backward():
+    x = Tensor(
+        [
+            [1.0, 2.0, 3.0],
+            [4.0, 5.0, 6.0],
+            [7.0, 8.0, 9.0],
+        ],
+        requires_grad=True,
+    )
+
+    view = x[1:, 1:]
+
+    loss = view.sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        1.0,
+        0.0,
+        1.0,
+        1.0,
+    ]
+
+
+def test_slice_backward_weighted():
+    x = Tensor(
+        [
+            [1.0, 2.0, 3.0],
+            [4.0, 5.0, 6.0],
+            [7.0, 8.0, 9.0],
+        ],
+        requires_grad=True,
+    )
+
+    view = x[1:, 1:]
+
+    weights = Tensor([
+        [10.0, 20.0],
+        [30.0, 40.0],
+    ])
+
+    loss = (view * weights).sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        10.0,
+        20.0,
+        0.0,
+        30.0,
+        40.0,
+    ]
+
+
+def test_row_slice_backward():
+    x = Tensor(
+        [
+            [1.0, 2.0, 3.0],
+            [4.0, 5.0, 6.0],
+        ],
+        requires_grad=True,
+    )
+
+    row = x[1]
+
+    weights = Tensor([
+        10.0,
+        20.0,
+        30.0,
+    ])
+
+    loss = (row * weights).sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        0.0,
+        0.0,
+        0.0,
+        10.0,
+        20.0,
+        30.0,
+    ]
+
+
+def test_column_slice_backward():
+    x = Tensor(
+        [
+            [1.0, 2.0, 3.0],
+            [4.0, 5.0, 6.0],
+            [7.0, 8.0, 9.0],
+        ],
+        requires_grad=True,
+    )
+
+    column = x[:, 1]
+
+    weights = Tensor([
+        10.0,
+        20.0,
+        30.0,
+    ])
+
+    loss = (column * weights).sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        0.0,
+        10.0,
+        0.0,
+        0.0,
+        20.0,
+        0.0,
+        0.0,
+        30.0,
+        0.0,
+    ]
+
+
+def test_step_slice_backward():
+    x = Tensor(
+        [
+            1.0,
+            2.0,
+            3.0,
+            4.0,
+            5.0,
+            6.0,
+        ],
+        requires_grad=True,
+    )
+
+    view = x[::2]
+
+    weights = Tensor([
+        10.0,
+        20.0,
+        30.0,
+    ])
+
+    loss = (view * weights).sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        10.0,
+        0.0,
+        20.0,
+        0.0,
+        30.0,
+        0.0,
+    ]
+
+
+def test_nested_slice_backward():
+    x = Tensor(
+        [
+            [1.0, 2.0, 3.0, 4.0],
+            [5.0, 6.0, 7.0, 8.0],
+            [9.0, 10.0, 11.0, 12.0],
+            [13.0, 14.0, 15.0, 16.0],
+        ],
+        requires_grad=True,
+    )
+
+    first_view = x[1:, 1:]
+
+    second_view = first_view[1:, :2]
+
+    loss = second_view.sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+
+        0.0,
+        1.0,
+        1.0,
+        0.0,
+
+        0.0,
+        1.0,
+        1.0,
+        0.0,
+    ]

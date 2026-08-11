@@ -366,6 +366,8 @@ class Tensor:
 
         contains_slice = False
 
+        index_mapping = []
+
         for item, dimension_size, stride in zip(
             key,
             self.shape,
@@ -378,6 +380,10 @@ class Tensor:
                 )
 
                 new_offset += index * stride
+
+                index_mapping.append(
+                    ("int", index)
+                )
 
             elif isinstance(item, slice):
                 contains_slice = True
@@ -404,6 +410,14 @@ class Tensor:
                     stride * step
                 )
 
+                index_mapping.append(
+                    (
+                        "slice",
+                        start,
+                        step,
+                    )
+                )
+
             else:
                 raise TypeError(
                     "Tensor indices must be "
@@ -413,13 +427,60 @@ class Tensor:
         if not contains_slice:
             return self.data[new_offset]
 
-        return Tensor._from_storage(
+        out = Tensor._from_storage(
             data=self.data,
             shape=new_shape,
             strides=new_strides,
             offset=new_offset,
             requires_grad=self.requires_grad,
+            _children=(self,),
+            _op="slice",
         )
+
+        if self.requires_grad:
+            def _backward():
+                for out_index in out._iter_indices():
+                    out_flat = (
+                        out._flat_logical_index(
+                            out_index
+                        )
+                    )
+
+                    upstream = out.grad[
+                        out_flat
+                    ]
+
+                    parent_index = []
+
+                    output_dimension = 0
+
+                    for mapping in index_mapping:
+                        if mapping[0] == "int":
+                            parent_index.append(
+                                mapping[1]
+                            )
+
+                        else:
+                            start = mapping[1]
+                            step = mapping[2]
+
+                            parent_index.append(
+                                start
+                                + out_index[
+                                    output_dimension
+                                ] * step
+                            )
+
+                            output_dimension += 1
+
+                    self._accumulate_grad(
+                        tuple(parent_index),
+                        upstream,
+                    )
+
+            out._backward = _backward
+
+        return out
 
     def __setitem__(self, indices, value):
         storage_index = self._storage_index(
