@@ -567,6 +567,57 @@ class Tensor:
         summed = self.sum(dim=dim)
 
         return summed / self.shape[dim]
+    
+    def matmul(self, other):
+        if not isinstance(other, Tensor):
+            raise TypeError(
+                "matmul requires another Tensor"
+            )
+
+        if self.ndim != 2 or other.ndim != 2:
+            raise ValueError(
+                "matmul currently supports only 2D tensors"
+            )
+
+        rows_a, cols_a = self.shape
+        rows_b, cols_b = other.shape
+
+        if cols_a != rows_b:
+            raise ValueError(
+                f"Cannot multiply tensors with shapes "
+                f"{self.shape} and {other.shape}"
+            )
+
+        result_data = []
+
+        for i in range(rows_a):
+            for j in range(cols_b):
+                total = 0.0
+
+                for k in range(cols_a):
+                    total += (
+                        self[i, k]
+                        * other[k, j]
+                    )
+
+                result_data.append(total)
+
+        result_shape = (
+            rows_a,
+            cols_b,
+        )
+
+        return Tensor._from_storage(
+            data=result_data,
+            shape=result_shape,
+            strides=self._compute_strides(
+                result_shape
+            ),
+            offset=0,
+        )
+
+    def __matmul__(self, other):
+        return self.matmul(other)
 
     def __add__(self, other):
         return self._elementwise_binary_op(

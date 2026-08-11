@@ -1265,3 +1265,191 @@ def test_invalid_reduction_dimension():
 
     with pytest.raises(IndexError):
         tensor.sum(dim=2)
+        
+def test_matrix_multiplication():
+    a = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+    ])
+
+    b = Tensor([
+        [7.0, 8.0],
+        [9.0, 10.0],
+        [11.0, 12.0],
+    ])
+
+    result = a @ b
+
+    assert result.shape == (2, 2)
+
+    assert result.data == [
+        58.0,
+        64.0,
+        139.0,
+        154.0,
+    ]
+
+
+def test_matmul_method():
+    a = Tensor([
+        [1.0, 2.0],
+        [3.0, 4.0],
+    ])
+
+    b = Tensor([
+        [5.0, 6.0],
+        [7.0, 8.0],
+    ])
+
+    result = a.matmul(b)
+
+    assert result.data == [
+        19.0,
+        22.0,
+        43.0,
+        50.0,
+    ]
+
+
+def test_matrix_identity():
+    matrix = Tensor([
+        [2.0, 3.0],
+        [4.0, 5.0],
+    ])
+
+    identity = Tensor([
+        [1.0, 0.0],
+        [0.0, 1.0],
+    ])
+
+    result = matrix @ identity
+
+    assert result.data == [
+        2.0,
+        3.0,
+        4.0,
+        5.0,
+    ]
+
+
+def test_matmul_rectangular():
+    a = Tensor([
+        [1.0, 2.0],
+        [3.0, 4.0],
+        [5.0, 6.0],
+    ])
+
+    b = Tensor([
+        [10.0],
+        [20.0],
+    ])
+
+    result = a @ b
+
+    assert result.shape == (3, 1)
+
+    assert result.data == [
+        50.0,
+        110.0,
+        170.0,
+    ]
+
+
+def test_matmul_shape_mismatch():
+    a = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+    ])
+
+    b = Tensor([
+        [1.0, 2.0],
+        [3.0, 4.0],
+    ])
+
+    with pytest.raises(ValueError):
+        _ = a @ b
+
+
+def test_matmul_requires_2d():
+    a = Tensor([
+        1.0,
+        2.0,
+        3.0,
+    ])
+
+    b = Tensor([
+        1.0,
+        2.0,
+        3.0,
+    ])
+
+    with pytest.raises(ValueError):
+        _ = a @ b
+
+
+def test_matmul_transposed_input():
+    original = Tensor([
+        [1.0, 2.0],
+        [3.0, 4.0],
+        [5.0, 6.0],
+    ])
+
+    a = original.T
+
+    b = Tensor([
+        [10.0],
+        [20.0],
+        [30.0],
+    ])
+
+    result = a @ b
+
+    assert result.shape == (2, 1)
+
+    assert result.data == [
+        220.0,
+        280.0,
+    ]
+
+
+def test_matmul_sliced_input():
+    original = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+        [7.0, 8.0, 9.0],
+    ])
+
+    a = original[1:, :]
+
+    b = Tensor([
+        [1.0],
+        [2.0],
+        [3.0],
+    ])
+
+    result = a @ b
+
+    assert result.shape == (2, 1)
+
+    assert result.data == [
+        32.0,
+        50.0,
+    ]
+
+
+def test_matmul_result_is_contiguous():
+    a = Tensor([
+        [1.0, 2.0],
+        [3.0, 4.0],
+    ])
+
+    b = Tensor([
+        [5.0, 6.0],
+        [7.0, 8.0],
+    ])
+
+    result = a @ b
+
+    assert result.is_contiguous
+    assert result.offset == 0
+    assert result.strides == (2, 1)
