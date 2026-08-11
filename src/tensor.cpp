@@ -139,6 +139,72 @@ Tensor Tensor::reshape(
     );
 }
 
+Tensor Tensor::slice(
+    std::size_t dim,
+    std::size_t start,
+    std::size_t stop,
+    std::size_t step
+) const {
+    if (dim >= ndim()) {
+        throw std::out_of_range(
+            "Tensor dimension out of range"
+        );
+    }
+
+    if (step == 0) {
+        throw std::invalid_argument(
+            "Slice step must be positive"
+        );
+    }
+
+    if (start > shape_[dim]) {
+        throw std::out_of_range(
+            "Slice start out of range"
+        );
+    }
+
+    if (stop > shape_[dim]) {
+        throw std::out_of_range(
+            "Slice stop out of range"
+        );
+    }
+
+    if (stop < start) {
+        throw std::invalid_argument(
+            "Slice stop must be greater "
+            "than or equal to start"
+        );
+    }
+
+    auto new_shape = shape_;
+    auto new_strides = strides_;
+
+    const std::size_t length = (
+        stop <= start
+        ? 0
+        : (
+            (stop - start + step - 1)
+            / step
+        )
+    );
+
+    new_shape[dim] = length;
+
+    const std::size_t new_offset = (
+        offset_
+        + start * strides_[dim]
+    );
+
+    new_strides[dim] *= step;
+
+    return Tensor(
+        storage_,
+        new_shape,
+        new_strides,
+        new_offset
+    );
+}
+
 std::vector<std::size_t>
 Tensor::compute_strides(
     const std::vector<std::size_t>& shape

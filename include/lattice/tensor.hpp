@@ -46,6 +46,13 @@ public:
         const std::vector<std::size_t>& shape
     ) const;
 
+    Tensor slice(
+        std::size_t dim,
+        std::size_t start,
+        std::size_t stop,
+        std::size_t step = 1
+    ) const;
+
 private:
     Tensor(
         std::shared_ptr<Storage> storage,
