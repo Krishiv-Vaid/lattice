@@ -102,3 +102,18 @@ class MLP(Module):
             parameters.extend(layer.parameters())
 
         return parameters
+
+
+class MSELoss:
+    def __call__(self, predictions, targets):
+        if len(predictions) != len(targets):
+            raise ValueError(
+                "predictions and targets must have the same length"
+            )
+
+        losses = [
+            (prediction - target) ** 2
+            for prediction, target in zip(predictions, targets)
+        ]
+
+        return sum(losses) / len(losses)

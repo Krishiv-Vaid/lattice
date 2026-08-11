@@ -1,4 +1,4 @@
-from lattice.nn import Layer, MLP, Module, Neuron
+from lattice.nn import Layer, MLP, MSELoss, Module, Neuron
 from lattice.value import Value
 
 
@@ -98,12 +98,6 @@ def test_layer_parameter_count():
         num_outputs=3
     )
 
-    # Each neuron:
-    # 2 weights + 1 bias = 3 parameters
-    #
-    # 3 neurons:
-    # 3 * 3 = 9 parameters
-
     assert len(layer.parameters()) == 9
 
 
@@ -159,3 +153,39 @@ def test_zero_grad():
         parameter.grad == 0.0
         for parameter in neuron.parameters()
     )
+
+
+def test_mse_loss():
+    loss_fn = MSELoss()
+
+    predictions = [
+        Value(2.0),
+        Value(4.0),
+    ]
+
+    targets = [
+        3.0,
+        6.0,
+    ]
+
+    loss = loss_fn(
+        predictions,
+        targets
+    )
+
+    assert loss.data == 2.5
+
+
+def test_mse_loss_backward():
+    loss_fn = MSELoss()
+
+    prediction = Value(3.0)
+
+    loss = loss_fn(
+        [prediction],
+        [5.0]
+    )
+
+    loss.backward()
+
+    assert prediction.grad == -4.0
