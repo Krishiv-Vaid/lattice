@@ -1,18 +1,33 @@
 from lattice.value import Value
 
-a = Value(2)
-b = Value(3)
+# Test addition backward
+a = Value(2.0)
+b = Value(3.0)
 
-c = a * b
-d = c + a
+c = a + b
 
-print("a =", a.data)
-print("b =", b.data)
+# Pretend a gradient of 1 has arrived at c
+c.grad = 1.0
+c._backward()
+
+print("Addition:")
 print("c =", c.data)
-print("d =", d.data)
+print("a.grad =", a.grad)
+print("b.grad =", b.grad)
 
-print("c operation:", c._op)
-print("d operation:", d._op)
+print()
 
-print("c has", len(c._prev), "parents")
-print("d has", len(d._prev), "parents")
+# Test multiplication backward
+x = Value(2.0)
+y = Value(3.0)
+
+z = x * y
+
+# Pretend a gradient of 1 has arrived at z
+z.grad = 1.0
+z._backward()
+
+print("Multiplication:")
+print("z =", z.data)
+print("x.grad =", x.grad)
+print("y.grad =", y.grad)

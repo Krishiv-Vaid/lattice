@@ -17,6 +17,12 @@ class Value:
             "+"
         )
 
+        def _backward():
+            self.grad += out.grad
+            other.grad += out.grad
+
+        out._backward = _backward
+
         return out
 
     def __mul__(self, other):
@@ -27,5 +33,11 @@ class Value:
             (self, other),
             "*"
         )
+
+        def _backward():
+            self.grad += other.data * out.grad
+            other.grad += self.data * out.grad
+
+        out._backward = _backward
 
         return out
