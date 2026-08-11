@@ -929,3 +929,113 @@ def test_cross_entropy_rejects_invalid_target():
             logits,
             targets,
         )
+        
+def test_three_class_classification_training():
+    import random
+
+    from lattice.optim import Adam
+
+    random.seed(42)
+
+    x = Tensor([
+        [-2.0, -1.0],
+        [-1.5, -0.5],
+        [-1.0, -1.5],
+
+        [1.0, -1.5],
+        [1.5, -0.5],
+        [2.0, -1.0],
+
+        [-0.5, 1.0],
+        [0.0, 2.0],
+        [0.5, 1.5],
+    ])
+
+    targets = Tensor([
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        1.0,
+        1.0,
+        2.0,
+        2.0,
+        2.0,
+    ])
+
+    model = Sequential(
+        Linear(2, 8),
+        ReLU(),
+        Linear(8, 3),
+    )
+
+    model[0].bias.data = [
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+    ]
+
+    criterion = CrossEntropyLoss()
+
+    optimizer = Adam(
+        model.parameters(),
+        lr=0.03,
+    )
+
+    for _ in range(1000):
+        logits = model(x)
+
+        loss = criterion(
+            logits,
+            targets,
+        )
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+    logits = model(x)
+
+    probabilities = logits.softmax(
+        dim=1
+    )
+
+    predicted_classes = []
+
+    for sample_index in range(
+        probabilities.shape[0]
+    ):
+        row_start = (
+            sample_index
+            * probabilities.shape[1]
+        )
+
+        row = probabilities.data[
+            row_start:
+            row_start
+            + probabilities.shape[1]
+        ]
+
+        predicted_classes.append(
+            max(
+                range(len(row)),
+                key=lambda index: row[index],
+            )
+        )
+
+    assert predicted_classes == [
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        2,
+        2,
+        2,
+    ]
