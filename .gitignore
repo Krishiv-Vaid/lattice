@@ -1,0 +1,21 @@
+# Build directories & compiled binaries
+build/
+bin/
+*.o
+*.so
+*.dylib
+*.exe
+*.out
+
+# Python cache & virtual environments
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# IDE & OS metadata
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
