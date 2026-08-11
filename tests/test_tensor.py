@@ -210,10 +210,8 @@ def test_transpose_indexing():
 
     assert transposed[0, 0] == 1.0
     assert transposed[0, 1] == 4.0
-
     assert transposed[1, 0] == 2.0
     assert transposed[1, 1] == 5.0
-
     assert transposed[2, 0] == 3.0
     assert transposed[2, 1] == 6.0
 
@@ -297,3 +295,141 @@ def test_negative_transpose_dimensions():
 
     assert transposed.shape == (3, 2)
     assert transposed.strides == (1, 3)
+
+
+def test_contiguous_tensor():
+    tensor = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+    ])
+
+    assert tensor.is_contiguous
+
+
+def test_transpose_is_not_contiguous():
+    tensor = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+    ])
+
+    transposed = tensor.T
+
+    assert not transposed.is_contiguous
+
+
+def test_reshape_contiguous_tensor():
+    tensor = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+    ])
+
+    reshaped = tensor.reshape(3, 2)
+
+    assert reshaped.shape == (3, 2)
+    assert reshaped.strides == (2, 1)
+
+    assert reshaped[0, 0] == 1.0
+    assert reshaped[1, 0] == 3.0
+    assert reshaped[2, 1] == 6.0
+
+    assert reshaped.data is tensor.data
+
+
+def test_reshape_accepts_tuple():
+    tensor = Tensor([
+        1.0,
+        2.0,
+        3.0,
+        4.0,
+    ])
+
+    reshaped = tensor.reshape((2, 2))
+
+    assert reshaped.shape == (2, 2)
+    assert reshaped[1, 1] == 4.0
+
+
+def test_reshape_rejects_wrong_numel():
+    tensor = Tensor([
+        1.0,
+        2.0,
+        3.0,
+        4.0,
+    ])
+
+    with pytest.raises(ValueError):
+        tensor.reshape(3, 2)
+
+
+def test_reshape_rejects_non_contiguous_tensor():
+    tensor = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+    ])
+
+    transposed = tensor.T
+
+    with pytest.raises(ValueError):
+        transposed.reshape(6)
+
+
+def test_contiguous_returns_same_tensor_when_possible():
+    tensor = Tensor([
+        [1.0, 2.0],
+        [3.0, 4.0],
+    ])
+
+    contiguous = tensor.contiguous()
+
+    assert contiguous is tensor
+
+
+def test_contiguous_copies_transposed_tensor():
+    tensor = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+    ])
+
+    transposed = tensor.T
+
+    contiguous = transposed.contiguous()
+
+    assert contiguous.shape == (3, 2)
+    assert contiguous.strides == (2, 1)
+    assert contiguous.is_contiguous
+
+    assert contiguous.data == [
+        1.0,
+        4.0,
+        2.0,
+        5.0,
+        3.0,
+        6.0,
+    ]
+
+    assert contiguous.data is not tensor.data
+
+
+def test_reshape_after_contiguous():
+    tensor = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+    ])
+
+    result = (
+        tensor
+        .T
+        .contiguous()
+        .reshape(2, 3)
+    )
+
+    assert result.shape == (2, 3)
+
+    assert result.data == [
+        1.0,
+        4.0,
+        2.0,
+        5.0,
+        3.0,
+        6.0,
+    ]

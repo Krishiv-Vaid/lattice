@@ -130,6 +130,30 @@ class Tensor:
 
         return dimension
 
+    def _iter_indices(self):
+        if self.ndim == 0:
+            yield ()
+            return
+
+        def recurse(dimension, prefix):
+            if dimension == self.ndim:
+                yield tuple(prefix)
+                return
+
+            for index in range(
+                self.shape[dimension]
+            ):
+                prefix.append(index)
+
+                yield from recurse(
+                    dimension + 1,
+                    prefix
+                )
+
+                prefix.pop()
+
+        yield from recurse(0, [])
+
     def __getitem__(self, indices):
         storage_index = self._storage_index(
             indices
@@ -168,6 +192,77 @@ class Tensor:
             offset=self.offset,
         )
 
+    def reshape(self, *shape):
+        if len(shape) == 1 and isinstance(
+            shape[0],
+            (tuple, list)
+        ):
+            shape = tuple(shape[0])
+
+        if not shape:
+            raise ValueError(
+                "reshape requires at least one dimension"
+            )
+
+        if any(
+            not isinstance(dimension, int)
+            for dimension in shape
+        ):
+            raise TypeError(
+                "reshape dimensions must be integers"
+            )
+
+        if any(
+            dimension < 0
+            for dimension in shape
+        ):
+            raise ValueError(
+                "negative reshape dimensions "
+                "are not supported yet"
+            )
+
+        new_numel = 1
+
+        for dimension in shape:
+            new_numel *= dimension
+
+        if new_numel != self.numel:
+            raise ValueError(
+                "reshape cannot change the "
+                "number of elements"
+            )
+
+        if not self.is_contiguous:
+            raise ValueError(
+                "cannot reshape a non-contiguous tensor; "
+                "call contiguous() first"
+            )
+
+        return Tensor._from_storage(
+            data=self.data,
+            shape=shape,
+            strides=self._compute_strides(shape),
+            offset=self.offset,
+        )
+
+    def contiguous(self):
+        if self.is_contiguous and self.offset == 0:
+            return self
+
+        copied_data = [
+            self[index]
+            for index in self._iter_indices()
+        ]
+
+        return Tensor._from_storage(
+            data=copied_data,
+            shape=self.shape,
+            strides=self._compute_strides(
+                self.shape
+            ),
+            offset=0,
+        )
+
     @property
     def T(self):
         if self.ndim != 2:
@@ -193,6 +288,15 @@ class Tensor:
             total *= dimension
 
         return total
+
+    @property
+    def is_contiguous(self):
+        return (
+            self.strides
+            == self._compute_strides(
+                self.shape
+            )
+        )
 
     def __repr__(self):
         return (
