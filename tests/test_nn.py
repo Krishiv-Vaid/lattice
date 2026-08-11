@@ -479,3 +479,75 @@ def test_tensor_mse_loss_shape_mismatch():
             prediction,
             target,
         )
+        
+def test_tensor_linear_regression_training():
+    from lattice.optim import SGD
+
+    x = Tensor([
+        [1.0],
+        [2.0],
+        [3.0],
+        [4.0],
+    ])
+
+    y = Tensor([
+        [2.0],
+        [4.0],
+        [6.0],
+        [8.0],
+    ])
+
+    model = Linear(
+        1,
+        1,
+    )
+
+    model.weight = Tensor(
+        [[0.0]],
+        requires_grad=True,
+    )
+
+    model.bias = Tensor(
+        [0.0],
+        requires_grad=True,
+    )
+
+    criterion = TensorMSELoss()
+
+    optimizer = SGD(
+        model.parameters(),
+        lr=0.05,
+    )
+
+    for _ in range(500):
+        prediction = model(x)
+
+        loss = criterion(
+            prediction,
+            y,
+        )
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+    assert model.weight.data[0] == pytest.approx(
+        2.0,
+        abs=1e-3,
+    )
+
+    assert model.bias.data[0] == pytest.approx(
+        0.0,
+        abs=1e-3,
+    )
+
+    prediction = model(
+        Tensor([
+            [5.0],
+        ])
+    )
+
+    assert prediction.data[0] == pytest.approx(
+        10.0,
+        abs=1e-3,
+    )
