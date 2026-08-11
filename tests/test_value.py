@@ -60,3 +60,57 @@ def test_computation_graph_backward():
     assert loss.data == 144.0
     assert x.grad == 96.0
     assert y.grad == 72.0
+
+
+def test_negation():
+    x = Value(3.0)
+
+    y = -x
+    y.backward()
+
+    assert y.data == -3.0
+    assert x.grad == -1.0
+
+
+def test_subtraction():
+    a = Value(5.0)
+    b = Value(2.0)
+
+    c = a - b
+    c.backward()
+
+    assert c.data == 3.0
+    assert a.grad == 1.0
+    assert b.grad == -1.0
+
+
+def test_power():
+    x = Value(3.0)
+
+    y = x ** 2
+    y.backward()
+
+    assert y.data == 9.0
+    assert x.grad == 6.0
+
+
+def test_division():
+    a = Value(6.0)
+    b = Value(2.0)
+
+    c = a / b
+    c.backward()
+
+    assert c.data == 3.0
+    assert a.grad == 0.5
+    assert b.grad == -1.5
+
+
+def test_reverse_operations():
+    x = Value(2.0)
+
+    a = 3 + x
+    b = 4 * x
+
+    assert a.data == 5.0
+    assert b.data == 8.0

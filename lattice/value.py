@@ -42,6 +42,43 @@ class Value:
 
         return out
 
+    def __neg__(self):
+        return self * -1
+
+    def __sub__(self, other):
+        other = other if isinstance(other, Value) else Value(other)
+        return self + (-other)
+
+    def __pow__(self, exponent):
+        assert isinstance(exponent, (int, float))
+
+        out = Value(
+            self.data ** exponent,
+            (self,),
+            f"**{exponent}"
+        )
+
+        def _backward():
+            self.grad += (
+                exponent
+                * (self.data ** (exponent - 1))
+                * out.grad
+            )
+
+        out._backward = _backward
+
+        return out
+
+    def __truediv__(self, other):
+        other = other if isinstance(other, Value) else Value(other)
+        return self * (other ** -1)
+
+    def __radd__(self, other):
+        return self + other
+
+    def __rmul__(self, other):
+        return self * other
+
     def backward(self):
         topo = []
         visited = set()
