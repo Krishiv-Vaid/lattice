@@ -8,8 +8,10 @@ from lattice.nn import (
     Module,
     Neuron,
     ReLU,
+    Sequential,
     TensorMSELoss,
 )
+
 from lattice.tensor import Tensor
 from lattice.value import Value
 
@@ -551,3 +553,204 @@ def test_tensor_linear_regression_training():
         10.0,
         abs=1e-3,
     )
+def test_sequential_structure():
+    model = Sequential(
+        Linear(2, 4),
+        ReLU(),
+        Linear(4, 1),
+    )
+
+    assert len(model) == 3
+
+    assert isinstance(
+        model[0],
+        Linear,
+    )
+
+    assert isinstance(
+        model[1],
+        ReLU,
+    )
+
+    assert isinstance(
+        model[2],
+        Linear,
+    )
+
+
+def test_sequential_forward():
+    first = Linear(2, 2)
+
+    first.weight = Tensor(
+        [
+            [1.0, 0.0],
+            [0.0, 1.0],
+        ],
+        requires_grad=True,
+    )
+
+    first.bias = Tensor(
+        [0.0, 0.0],
+        requires_grad=True,
+    )
+
+    second = Linear(2, 1)
+
+    second.weight = Tensor(
+        [
+            [2.0],
+            [3.0],
+        ],
+        requires_grad=True,
+    )
+
+    second.bias = Tensor(
+        [1.0],
+        requires_grad=True,
+    )
+
+    model = Sequential(
+        first,
+        ReLU(),
+        second,
+    )
+
+    x = Tensor([
+        [1.0, 2.0],
+        [3.0, 4.0],
+    ])
+
+    output = model(x)
+
+    assert output.shape == (2, 1)
+
+    assert output.data == [
+        9.0,
+        19.0,
+    ]
+
+
+def test_sequential_parameter_collection():
+    model = Sequential(
+        Linear(2, 4),
+        ReLU(),
+        Linear(4, 1),
+    )
+
+    parameters = model.parameters()
+
+    assert len(parameters) == 4
+
+    assert parameters[0] is model[0].weight
+    assert parameters[1] is model[0].bias
+    assert parameters[2] is model[2].weight
+    assert parameters[3] is model[2].bias
+
+
+def test_sequential_backward():
+    first = Linear(2, 2)
+
+    first.weight = Tensor(
+        [
+            [1.0, 0.0],
+            [0.0, 1.0],
+        ],
+        requires_grad=True,
+    )
+
+    first.bias = Tensor(
+        [0.0, 0.0],
+        requires_grad=True,
+    )
+
+    second = Linear(2, 1)
+
+    second.weight = Tensor(
+        [
+            [2.0],
+            [3.0],
+        ],
+        requires_grad=True,
+    )
+
+    second.bias = Tensor(
+        [0.0],
+        requires_grad=True,
+    )
+
+    model = Sequential(
+        first,
+        ReLU(),
+        second,
+    )
+
+    x = Tensor([
+        [1.0, 2.0],
+    ])
+
+    loss = model(x).sum()
+
+    loss.backward()
+
+    assert first.weight.grad == [
+        2.0,
+        3.0,
+        4.0,
+        6.0,
+    ]
+
+    assert first.bias.grad == [
+        2.0,
+        3.0,
+    ]
+
+    assert second.weight.grad == [
+        1.0,
+        2.0,
+    ]
+
+    assert second.bias.grad == [
+        1.0,
+    ]
+
+
+def test_sequential_zero_grad():
+    model = Sequential(
+        Linear(2, 2),
+        ReLU(),
+        Linear(2, 1),
+    )
+
+    x = Tensor([
+        [1.0, 2.0],
+    ])
+
+    loss = model(x).sum()
+
+    loss.backward()
+
+    assert any(
+        any(
+            gradient != 0.0
+            for gradient in parameter.grad
+        )
+        for parameter in model.parameters()
+    )
+
+    model.zero_grad()
+
+    assert all(
+        all(
+            gradient == 0.0
+            for gradient in parameter.grad
+        )
+        for parameter in model.parameters()
+    )
+
+
+def test_sequential_rejects_non_module():
+    with pytest.raises(TypeError):
+        Sequential(
+            Linear(2, 2),
+            "not a module",
+        )

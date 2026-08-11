@@ -143,6 +143,39 @@ class ReLU(Module):
     def parameters(self):
         return []
 
+class Sequential(Module):
+    def __init__(self, *modules):
+        self.modules = list(modules)
+
+        for module in self.modules:
+            if not isinstance(module, Module):
+                raise TypeError(
+                    "Sequential expects Module objects"
+                )
+
+    def __call__(self, x):
+        output = x
+
+        for module in self.modules:
+            output = module(output)
+
+        return output
+
+    def parameters(self):
+        parameters = []
+
+        for module in self.modules:
+            parameters.extend(
+                module.parameters()
+            )
+
+        return parameters
+
+    def __len__(self):
+        return len(self.modules)
+
+    def __getitem__(self, index):
+        return self.modules[index]
 
 class TensorMSELoss(Module):
     def __call__(self, prediction, target):
@@ -270,6 +303,7 @@ __all__ = [
     "Module",
     "Linear",
     "ReLU",
+    "Sequential",
     "TensorMSELoss",
     "Neuron",
     "Layer",
