@@ -1,6 +1,7 @@
 import pytest
 
 from lattice.nn import (
+    CrossEntropyLoss,
     Layer,
     Linear,
     MLP,
@@ -426,8 +427,8 @@ def test_tensor_mse_loss_forward():
     assert loss.shape == ()
 
     assert loss.data[0] == pytest.approx(
-    14.0 / 3.0
-)
+        14.0 / 3.0
+    )
 
 
 def test_tensor_mse_loss_backward():
@@ -553,6 +554,8 @@ def test_tensor_linear_regression_training():
         10.0,
         abs=1e-3,
     )
+
+
 def test_sequential_structure():
     model = Sequential(
         Linear(2, 4),
@@ -829,3 +832,100 @@ def test_tensor_xor_training():
         0.0,
         abs=0.05,
     )
+
+def test_cross_entropy_forward():
+    criterion = CrossEntropyLoss()
+
+    logits = Tensor([
+        [1.0, 2.0, 3.0],
+    ])
+
+    targets = Tensor([
+        2.0,
+    ])
+
+    loss = criterion(
+        logits,
+        targets,
+    )
+
+    assert loss.shape == ()
+
+    assert loss.data[0] == pytest.approx(
+        0.4076059644,
+        abs=1e-8,
+    )
+
+
+def test_cross_entropy_backward():
+    criterion = CrossEntropyLoss()
+
+    logits = Tensor(
+        [
+            [1.0, 2.0, 3.0],
+        ],
+        requires_grad=True,
+    )
+
+    targets = Tensor([
+        2.0,
+    ])
+
+    loss = criterion(
+        logits,
+        targets,
+    )
+
+    loss.backward()
+
+    assert logits.grad == pytest.approx([
+        0.0900305732,
+        0.2447284711,
+        -0.3347590442,
+    ])
+
+
+def test_cross_entropy_batch():
+    criterion = CrossEntropyLoss()
+
+    logits = Tensor(
+        [
+            [3.0, 1.0, 0.0],
+            [0.0, 1.0, 3.0],
+        ],
+        requires_grad=True,
+    )
+
+    targets = Tensor([
+        0.0,
+        2.0,
+    ])
+
+    loss = criterion(
+        logits,
+        targets,
+    )
+
+    assert loss.data[0] < 0.2
+
+    loss.backward()
+
+    assert len(logits.grad) == 6
+
+
+def test_cross_entropy_rejects_invalid_target():
+    criterion = CrossEntropyLoss()
+
+    logits = Tensor([
+        [1.0, 2.0, 3.0],
+    ])
+
+    targets = Tensor([
+        5.0,
+    ])
+
+    with pytest.raises(ValueError):
+        criterion(
+            logits,
+            targets,
+        )

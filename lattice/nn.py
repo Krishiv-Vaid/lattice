@@ -205,6 +205,99 @@ class TensorMSELoss(Module):
 
     def parameters(self):
         return []
+    
+class CrossEntropyLoss(Module):
+    def __call__(self, logits, targets):
+        if not isinstance(logits, Tensor):
+            raise TypeError(
+                "logits must be a Tensor"
+            )
+
+        if not isinstance(targets, Tensor):
+            raise TypeError(
+                "targets must be a Tensor"
+            )
+
+        if logits.ndim != 2:
+            raise ValueError(
+                "CrossEntropyLoss expects "
+                "2D logits"
+            )
+
+        if targets.ndim != 1:
+            raise ValueError(
+                "CrossEntropyLoss expects "
+                "1D class-index targets"
+            )
+
+        batch_size, num_classes = logits.shape
+
+        if targets.shape[0] != batch_size:
+            raise ValueError(
+                "targets batch size must match logits"
+            )
+
+        log_probs = logits.log_softmax(dim=1)
+
+        total = 0.0
+
+        for batch_index in range(batch_size):
+            class_index = int(
+                targets[batch_index]
+            )
+
+            if (
+                class_index < 0
+                or class_index >= num_classes
+            ):
+                raise ValueError(
+                    "target class index out of range"
+                )
+
+            total -= log_probs[
+                batch_index,
+                class_index,
+            ]
+
+        loss_value = total / batch_size
+
+        out = Tensor(
+            loss_value,
+            requires_grad=logits.requires_grad,
+            _children=(log_probs,),
+            _op="cross_entropy",
+        )
+
+        if logits.requires_grad:
+            def _backward():
+                upstream = out.grad[0]
+
+                for batch_index in range(
+                    batch_size
+                ):
+                    class_index = int(
+                        targets[batch_index]
+                    )
+
+                    flat = (
+                        log_probs._flat_logical_index(
+                            (
+                                batch_index,
+                                class_index,
+                            )
+                        )
+                    )
+
+                    log_probs.grad[flat] += (
+                        -upstream / batch_size
+                    )
+
+            out._backward = _backward
+
+        return out
+
+    def parameters(self):
+        return []
 
 
 class Layer(Module):

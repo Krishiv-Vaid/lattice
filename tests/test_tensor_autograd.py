@@ -3,6 +3,114 @@ import pytest
 
 from lattice.tensor import Tensor
 
+def test_softmax_forward():
+    x = Tensor([
+        [1.0, 2.0, 3.0],
+    ])
+
+    output = x.softmax(dim=1)
+
+    assert output.shape == (1, 3)
+
+    assert sum(output.data) == pytest.approx(
+        1.0
+    )
+
+    assert output.data == pytest.approx([
+        0.0900305732,
+        0.2447284711,
+        0.6652409558,
+    ])
+
+
+def test_softmax_rows_sum_to_one():
+    x = Tensor([
+        [1.0, 2.0, 3.0],
+        [5.0, 5.0, 5.0],
+    ])
+
+    output = x.softmax(dim=1)
+
+    assert sum(
+        output.data[:3]
+    ) == pytest.approx(1.0)
+
+    assert sum(
+        output.data[3:]
+    ) == pytest.approx(1.0)
+
+
+def test_softmax_backward():
+    x = Tensor(
+        [[1.0, 2.0, 3.0]],
+        requires_grad=True,
+    )
+
+    weights = Tensor([
+        [1.0, 2.0, 4.0],
+    ])
+
+    loss = (
+        x.softmax(dim=1)
+        * weights
+    ).sum()
+
+    loss.backward()
+
+    assert sum(x.grad) == pytest.approx(
+        0.0,
+        abs=1e-10,
+    )
+
+
+def test_log_softmax_forward():
+    x = Tensor([
+        [1.0, 2.0, 3.0],
+    ])
+
+    output = x.log_softmax(dim=1)
+
+    probabilities = [
+        math.exp(value)
+        for value in output.data
+    ]
+
+    assert sum(probabilities) == pytest.approx(
+        1.0
+    )
+
+
+def test_log_softmax_backward_gradient_sum():
+    x = Tensor(
+        [[1.0, 2.0, 3.0]],
+        requires_grad=True,
+    )
+
+    loss = x.log_softmax(dim=1).sum()
+
+    loss.backward()
+
+    assert sum(x.grad) == pytest.approx(
+        0.0,
+        abs=1e-10,
+    )
+
+
+def test_softmax_numerical_stability():
+    x = Tensor([
+        [1000.0, 1001.0, 1002.0],
+    ])
+
+    output = x.softmax(dim=1)
+
+    assert sum(output.data) == pytest.approx(
+        1.0
+    )
+
+    assert all(
+        math.isfinite(value)
+        for value in output.data
+    )
 
 def test_requires_grad_defaults_false():
     tensor = Tensor([

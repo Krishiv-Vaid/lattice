@@ -1433,3 +1433,267 @@ class Tensor:
             out._backward = _backward
 
         return out
+    
+    def softmax(self, dim=-1):
+        dim = self._normalize_dimension(dim)
+
+        result_data = [
+            0.0
+        ] * self.numel
+
+        outer_shape = (
+            self.shape[:dim]
+            + self.shape[dim + 1:]
+        )
+
+        for outer_index in self._iter_shape_indices(
+            outer_shape
+        ):
+            values = []
+
+            for dim_index in range(
+                self.shape[dim]
+            ):
+                full_index = list(outer_index)
+                full_index.insert(
+                    dim,
+                    dim_index,
+                )
+
+                values.append(
+                    self[tuple(full_index)]
+                )
+
+            maximum = max(values)
+
+            exponentials = [
+                math.exp(value - maximum)
+                for value in values
+            ]
+
+            denominator = sum(exponentials)
+
+            for dim_index, exponential in enumerate(
+                exponentials
+            ):
+                full_index = list(outer_index)
+                full_index.insert(
+                    dim,
+                    dim_index,
+                )
+
+                flat = self._flat_logical_index(
+                    tuple(full_index)
+                )
+
+                result_data[flat] = (
+                    exponential / denominator
+                )
+
+        out = Tensor._from_storage(
+            data=result_data,
+            shape=self.shape,
+            strides=self._compute_strides(
+                self.shape
+            ),
+            offset=0,
+            requires_grad=self.requires_grad,
+            _children=(self,),
+            _op="softmax",
+        )
+
+        if self.requires_grad:
+            def _backward():
+                for outer_index in self._iter_shape_indices(
+                    outer_shape
+                ):
+                    dot = 0.0
+
+                    for dim_index in range(
+                        self.shape[dim]
+                    ):
+                        full_index = list(outer_index)
+                        full_index.insert(
+                            dim,
+                            dim_index,
+                        )
+
+                        full_index = tuple(full_index)
+
+                        flat = out._flat_logical_index(
+                            full_index
+                        )
+
+                        dot += (
+                            out.grad[flat]
+                            * out[full_index]
+                        )
+
+                    for dim_index in range(
+                        self.shape[dim]
+                    ):
+                        full_index = list(outer_index)
+                        full_index.insert(
+                            dim,
+                            dim_index,
+                        )
+
+                        full_index = tuple(full_index)
+
+                        flat = out._flat_logical_index(
+                            full_index
+                        )
+
+                        gradient = (
+                            out[full_index]
+                            * (
+                                out.grad[flat]
+                                - dot
+                            )
+                        )
+
+                        self._accumulate_grad(
+                            full_index,
+                            gradient,
+                        )
+
+            out._backward = _backward
+
+        return out
+    
+    def log_softmax(self, dim=-1):
+        dim = self._normalize_dimension(dim)
+
+        result_data = [
+            0.0
+        ] * self.numel
+
+        softmax_data = [
+            0.0
+        ] * self.numel
+
+        outer_shape = (
+            self.shape[:dim]
+            + self.shape[dim + 1:]
+        )
+
+        for outer_index in self._iter_shape_indices(
+            outer_shape
+        ):
+            values = []
+
+            for dim_index in range(
+                self.shape[dim]
+            ):
+                full_index = list(outer_index)
+                full_index.insert(
+                    dim,
+                    dim_index,
+                )
+
+                values.append(
+                    self[tuple(full_index)]
+                )
+
+            maximum = max(values)
+
+            exponentials = [
+                math.exp(value - maximum)
+                for value in values
+            ]
+
+            denominator = sum(exponentials)
+
+            log_denominator = math.log(
+                denominator
+            )
+
+            for dim_index, value in enumerate(
+                values
+            ):
+                full_index = list(outer_index)
+                full_index.insert(
+                    dim,
+                    dim_index,
+                )
+
+                full_index = tuple(full_index)
+
+                flat = self._flat_logical_index(
+                    full_index
+                )
+
+                result_data[flat] = (
+                    value
+                    - maximum
+                    - log_denominator
+                )
+
+                softmax_data[flat] = (
+                    exponentials[dim_index]
+                    / denominator
+                )
+
+        out = Tensor._from_storage(
+            data=result_data,
+            shape=self.shape,
+            strides=self._compute_strides(
+                self.shape
+            ),
+            offset=0,
+            requires_grad=self.requires_grad,
+            _children=(self,),
+            _op="log_softmax",
+        )
+
+        if self.requires_grad:
+            def _backward():
+                for outer_index in self._iter_shape_indices(
+                    outer_shape
+                ):
+                    grad_sum = 0.0
+
+                    for dim_index in range(
+                        self.shape[dim]
+                    ):
+                        full_index = list(outer_index)
+                        full_index.insert(
+                            dim,
+                            dim_index,
+                        )
+
+                        flat = out._flat_logical_index(
+                            tuple(full_index)
+                        )
+
+                        grad_sum += out.grad[flat]
+
+                    for dim_index in range(
+                        self.shape[dim]
+                    ):
+                        full_index = list(outer_index)
+                        full_index.insert(
+                            dim,
+                            dim_index,
+                        )
+
+                        full_index = tuple(full_index)
+
+                        flat = out._flat_logical_index(
+                            full_index
+                        )
+
+                        gradient = (
+                            out.grad[flat]
+                            - softmax_data[flat]
+                            * grad_sum
+                        )
+
+                        self._accumulate_grad(
+                            full_index,
+                            gradient,
+                        )
+
+            out._backward = _backward
+
+        return out
