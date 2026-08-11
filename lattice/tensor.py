@@ -365,7 +365,95 @@ class Tensor:
                 self.shape
             )
         )
+        
+    def _elementwise_binary_op(self, other, operation):
+        if isinstance(other, Tensor):
+            if self.shape != other.shape:
+                raise ValueError(
+                    "Tensor shapes must match for "
+                    "elementwise operations"
+                )
 
+            result_data = [
+                operation(
+                    self[index],
+                    other[index],
+                )
+                for index in self._iter_indices()
+            ]
+
+        elif isinstance(other, (int, float)):
+            result_data = [
+                operation(
+                    self[index],
+                    float(other),
+                )
+                for index in self._iter_indices()
+            ]
+
+        else:
+            return NotImplemented
+
+        return Tensor._from_storage(
+            data=result_data,
+            shape=self.shape,
+            strides=self._compute_strides(
+                self.shape
+            ),
+            offset=0,
+        )
+
+    def __add__(self, other):
+        return self._elementwise_binary_op(
+            other,
+            lambda a, b: a + b,
+        )
+
+    def __radd__(self, other):
+        return self + other
+
+    def __sub__(self, other):
+        return self._elementwise_binary_op(
+            other,
+            lambda a, b: a - b,
+        )
+
+    def __rsub__(self, other):
+        if isinstance(other, (int, float)):
+            return self._elementwise_binary_op(
+                other,
+                lambda a, b: b - a,
+            )
+
+        return NotImplemented
+
+    def __mul__(self, other):
+        return self._elementwise_binary_op(
+            other,
+            lambda a, b: a * b,
+        )
+
+    def __rmul__(self, other):
+        return self * other
+
+    def __truediv__(self, other):
+        return self._elementwise_binary_op(
+            other,
+            lambda a, b: a / b,
+        )
+
+    def __rtruediv__(self, other):
+        if isinstance(other, (int, float)):
+            return self._elementwise_binary_op(
+                other,
+                lambda a, b: b / a,
+            )
+
+        return NotImplemented
+
+    def __neg__(self):
+        return self * -1.0    
+    
     def __repr__(self):
         return (
             f"Tensor("

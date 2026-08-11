@@ -618,3 +618,258 @@ def test_contiguous_from_slice():
     assert contiguous.offset == 0
 
     assert contiguous.data is not tensor.data
+
+def test_tensor_addition():
+    a = Tensor([
+        [1.0, 2.0],
+        [3.0, 4.0],
+    ])
+
+    b = Tensor([
+        [10.0, 20.0],
+        [30.0, 40.0],
+    ])
+
+    result = a + b
+
+    assert result.shape == (2, 2)
+    assert result.data == [
+        11.0,
+        22.0,
+        33.0,
+        44.0,
+    ]
+
+
+def test_tensor_subtraction():
+    a = Tensor([
+        10.0,
+        20.0,
+        30.0,
+    ])
+
+    b = Tensor([
+        1.0,
+        2.0,
+        3.0,
+    ])
+
+    result = a - b
+
+    assert result.data == [
+        9.0,
+        18.0,
+        27.0,
+    ]
+
+
+def test_tensor_multiplication():
+    a = Tensor([
+        1.0,
+        2.0,
+        3.0,
+    ])
+
+    b = Tensor([
+        4.0,
+        5.0,
+        6.0,
+    ])
+
+    result = a * b
+
+    assert result.data == [
+        4.0,
+        10.0,
+        18.0,
+    ]
+
+
+def test_tensor_division():
+    a = Tensor([
+        10.0,
+        20.0,
+        30.0,
+    ])
+
+    b = Tensor([
+        2.0,
+        4.0,
+        5.0,
+    ])
+
+    result = a / b
+
+    assert result.data == [
+        5.0,
+        5.0,
+        6.0,
+    ]
+
+
+def test_tensor_scalar_addition():
+    tensor = Tensor([
+        1.0,
+        2.0,
+        3.0,
+    ])
+
+    result = tensor + 10
+
+    assert result.data == [
+        11.0,
+        12.0,
+        13.0,
+    ]
+
+
+def test_reverse_scalar_addition():
+    tensor = Tensor([
+        1.0,
+        2.0,
+        3.0,
+    ])
+
+    result = 10 + tensor
+
+    assert result.data == [
+        11.0,
+        12.0,
+        13.0,
+    ]
+
+
+def test_tensor_scalar_multiplication():
+    tensor = Tensor([
+        1.0,
+        2.0,
+        3.0,
+    ])
+
+    result = tensor * 3
+
+    assert result.data == [
+        3.0,
+        6.0,
+        9.0,
+    ]
+
+
+def test_reverse_scalar_subtraction():
+    tensor = Tensor([
+        1.0,
+        2.0,
+        3.0,
+    ])
+
+    result = 10 - tensor
+
+    assert result.data == [
+        9.0,
+        8.0,
+        7.0,
+    ]
+
+
+def test_reverse_scalar_division():
+    tensor = Tensor([
+        2.0,
+        4.0,
+        5.0,
+    ])
+
+    result = 20 / tensor
+
+    assert result.data == [
+        10.0,
+        5.0,
+        4.0,
+    ]
+
+
+def test_tensor_negation():
+    tensor = Tensor([
+        1.0,
+        -2.0,
+        3.0,
+    ])
+
+    result = -tensor
+
+    assert result.data == [
+        -1.0,
+        2.0,
+        -3.0,
+    ]
+
+
+def test_elementwise_shape_mismatch():
+    a = Tensor([
+        1.0,
+        2.0,
+    ])
+
+    b = Tensor([
+        1.0,
+        2.0,
+        3.0,
+    ])
+
+    with pytest.raises(ValueError):
+        _ = a + b
+
+
+def test_elementwise_operation_on_transpose():
+    a = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+    ])
+
+    transposed = a.T
+
+    result = transposed * 10
+
+    assert result.shape == (3, 2)
+
+    assert result.data == [
+        10.0,
+        40.0,
+        20.0,
+        50.0,
+        30.0,
+        60.0,
+    ]
+
+
+def test_elementwise_operation_on_slice():
+    tensor = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+        [7.0, 8.0, 9.0],
+    ])
+
+    view = tensor[1:, 1:]
+
+    result = view + 100
+
+    assert result.shape == (2, 2)
+
+    assert result.data == [
+        105.0,
+        106.0,
+        108.0,
+        109.0,
+    ]
+
+
+def test_elementwise_result_is_contiguous():
+    tensor = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+    ])
+
+    result = tensor.T + 1
+
+    assert result.is_contiguous
+    assert result.offset == 0
+    assert result.strides == (2, 1)
