@@ -806,14 +806,90 @@ class Tensor:
             cols_b,
         )
 
-        return Tensor._from_storage(
+        requires_grad = (
+            self.requires_grad
+            or other.requires_grad
+        )
+
+        out = Tensor._from_storage(
             data=result_data,
             shape=result_shape,
             strides=self._compute_strides(
                 result_shape
             ),
             offset=0,
+            requires_grad=requires_grad,
+            _children=(self, other),
+            _op="matmul",
         )
+
+        if requires_grad:
+            def _backward():
+                if self.requires_grad:
+                    for i in range(rows_a):
+                        for k in range(cols_a):
+                            total = 0.0
+
+                            for j in range(cols_b):
+                                out_index = (
+                                    i,
+                                    j,
+                                )
+
+                                out_flat = (
+                                    out._flat_logical_index(
+                                        out_index
+                                    )
+                                )
+
+                                upstream = out.grad[
+                                    out_flat
+                                ]
+
+                                total += (
+                                    upstream
+                                    * other[k, j]
+                                )
+
+                            self._accumulate_grad(
+                                (i, k),
+                                total,
+                            )
+
+                if other.requires_grad:
+                    for k in range(rows_b):
+                        for j in range(cols_b):
+                            total = 0.0
+
+                            for i in range(rows_a):
+                                out_index = (
+                                    i,
+                                    j,
+                                )
+
+                                out_flat = (
+                                    out._flat_logical_index(
+                                        out_index
+                                    )
+                                )
+
+                                upstream = out.grad[
+                                    out_flat
+                                ]
+
+                                total += (
+                                    self[i, k]
+                                    * upstream
+                                )
+
+                            other._accumulate_grad(
+                                (k, j),
+                                total,
+                            )
+
+            out._backward = _backward
+
+        return out
 
     def sum(self, dim=None):
         if dim is None:

@@ -641,3 +641,288 @@ def test_reduction_backward_chain_rule():
         30.0,
         30.0,
     ]
+    
+def test_matmul_backward_both_operands():
+    a = Tensor(
+        [
+            [1.0, 2.0],
+            [3.0, 4.0],
+        ],
+        requires_grad=True,
+    )
+
+    b = Tensor(
+        [
+            [5.0, 6.0],
+            [7.0, 8.0],
+        ],
+        requires_grad=True,
+    )
+
+    loss = (a @ b).sum()
+
+    loss.backward()
+
+    assert a.grad == [
+        11.0,
+        15.0,
+        11.0,
+        15.0,
+    ]
+
+    assert b.grad == [
+        4.0,
+        4.0,
+        6.0,
+        6.0,
+    ]
+
+
+def test_matmul_backward_left_only():
+    a = Tensor(
+        [
+            [1.0, 2.0],
+            [3.0, 4.0],
+        ],
+        requires_grad=True,
+    )
+
+    b = Tensor([
+        [5.0, 6.0],
+        [7.0, 8.0],
+    ])
+
+    loss = (a @ b).sum()
+
+    loss.backward()
+
+    assert a.grad == [
+        11.0,
+        15.0,
+        11.0,
+        15.0,
+    ]
+
+    assert b.grad is None
+
+
+def test_matmul_backward_right_only():
+    a = Tensor([
+        [1.0, 2.0],
+        [3.0, 4.0],
+    ])
+
+    b = Tensor(
+        [
+            [5.0, 6.0],
+            [7.0, 8.0],
+        ],
+        requires_grad=True,
+    )
+
+    loss = (a @ b).sum()
+
+    loss.backward()
+
+    assert a.grad is None
+
+    assert b.grad == [
+        4.0,
+        4.0,
+        6.0,
+        6.0,
+    ]
+
+
+def test_matmul_backward_rectangular():
+    a = Tensor(
+        [
+            [1.0, 2.0, 3.0],
+            [4.0, 5.0, 6.0],
+        ],
+        requires_grad=True,
+    )
+
+    b = Tensor(
+        [
+            [7.0, 8.0],
+            [9.0, 10.0],
+            [11.0, 12.0],
+        ],
+        requires_grad=True,
+    )
+
+    loss = (a @ b).sum()
+
+    loss.backward()
+
+    assert a.grad == [
+        15.0,
+        19.0,
+        23.0,
+        15.0,
+        19.0,
+        23.0,
+    ]
+
+    assert b.grad == [
+        5.0,
+        5.0,
+        7.0,
+        7.0,
+        9.0,
+        9.0,
+    ]
+
+
+def test_matmul_backward_weighted_output():
+    a = Tensor(
+        [
+            [1.0, 2.0],
+            [3.0, 4.0],
+        ],
+        requires_grad=True,
+    )
+
+    b = Tensor(
+        [
+            [5.0, 6.0],
+            [7.0, 8.0],
+        ],
+        requires_grad=True,
+    )
+
+    weights = Tensor([
+        [1.0, 2.0],
+        [3.0, 4.0],
+    ])
+
+    output = a @ b
+
+    loss = (output * weights).sum()
+
+    loss.backward()
+
+    assert a.grad == [
+        17.0,
+        23.0,
+        39.0,
+        53.0,
+    ]
+
+    assert b.grad == [
+        10.0,
+        14.0,
+        14.0,
+        20.0,
+    ]
+
+
+def test_matmul_chain_rule():
+    x = Tensor(
+        [
+            [1.0, 2.0],
+        ],
+        requires_grad=True,
+    )
+
+    w1 = Tensor(
+        [
+            [3.0, 4.0],
+            [5.0, 6.0],
+        ],
+        requires_grad=True,
+    )
+
+    w2 = Tensor(
+        [
+            [7.0],
+            [8.0],
+        ],
+        requires_grad=True,
+    )
+
+    output = (x @ w1) @ w2
+
+    loss = output.sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        53.0,
+        83.0,
+    ]
+
+    assert w1.grad == [
+        7.0,
+        8.0,
+        14.0,
+        16.0,
+    ]
+
+    assert w2.grad == [
+        13.0,
+        16.0,
+    ]
+
+
+def test_matmul_with_broadcast_bias_backward():
+    x = Tensor([
+        [1.0, 2.0],
+        [3.0, 4.0],
+    ])
+
+    weight = Tensor(
+        [
+            [5.0, 6.0, 7.0],
+            [8.0, 9.0, 10.0],
+        ],
+        requires_grad=True,
+    )
+
+    bias = Tensor(
+        [1.0, 2.0, 3.0],
+        requires_grad=True,
+    )
+
+    output = x @ weight + bias
+
+    loss = output.sum()
+
+    loss.backward()
+
+    assert weight.grad == [
+        4.0,
+        4.0,
+        4.0,
+        6.0,
+        6.0,
+        6.0,
+    ]
+
+    assert bias.grad == [
+        2.0,
+        2.0,
+        2.0,
+    ]
+
+
+def test_matmul_same_tensor_accumulates_gradients():
+    x = Tensor(
+        [
+            [1.0, 2.0],
+            [3.0, 4.0],
+        ],
+        requires_grad=True,
+    )
+
+    loss = (x @ x).sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        7.0,
+        11.0,
+        9.0,
+        13.0,
+    ]
