@@ -754,3 +754,78 @@ def test_sequential_rejects_non_module():
             Linear(2, 2),
             "not a module",
         )
+
+def test_tensor_xor_training():
+    import random
+
+    from lattice.optim import SGD
+
+    random.seed(42)
+
+    x = Tensor([
+        [0.0, 0.0],
+        [0.0, 1.0],
+        [1.0, 0.0],
+        [1.0, 1.0],
+    ])
+
+    y = Tensor([
+        [0.0],
+        [1.0],
+        [1.0],
+        [0.0],
+    ])
+
+    model = Sequential(
+        Linear(2, 4),
+        ReLU(),
+        Linear(4, 1),
+    )
+
+    model[0].bias.data = [
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+    ]
+
+    criterion = TensorMSELoss()
+
+    optimizer = SGD(
+        model.parameters(),
+        lr=0.03,
+    )
+
+    for _ in range(5000):
+        prediction = model(x)
+
+        loss = criterion(
+            prediction,
+            y,
+        )
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+    prediction = model(x)
+
+    assert prediction.data[0] == pytest.approx(
+        0.0,
+        abs=0.05,
+    )
+
+    assert prediction.data[1] == pytest.approx(
+        1.0,
+        abs=0.05,
+    )
+
+    assert prediction.data[2] == pytest.approx(
+        1.0,
+        abs=0.05,
+    )
+
+    assert prediction.data[3] == pytest.approx(
+        0.0,
+        abs=0.05,
+    )
