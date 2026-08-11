@@ -1,3 +1,6 @@
+import math
+
+
 class Value:
     def __init__(self, data, _children=(), _op=""):
         self.data = float(data)
@@ -78,6 +81,36 @@ class Value:
 
     def __rmul__(self, other):
         return self * other
+
+    def relu(self):
+        out = Value(
+            self.data if self.data > 0 else 0.0,
+            (self,),
+            "ReLU"
+        )
+
+        def _backward():
+            self.grad += (
+                1.0 if self.data > 0 else 0.0
+            ) * out.grad
+
+        out._backward = _backward
+
+        return out
+
+    def exp(self):
+        out = Value(
+            math.exp(self.data),
+            (self,),
+            "exp"
+        )
+
+        def _backward():
+            self.grad += out.data * out.grad
+
+        out._backward = _backward
+
+        return out
 
     def backward(self):
         topo = []

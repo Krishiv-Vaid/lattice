@@ -1,3 +1,5 @@
+import pytest
+
 from lattice.value import Value
 
 
@@ -114,3 +116,33 @@ def test_reverse_operations():
 
     assert a.data == 5.0
     assert b.data == 8.0
+
+
+def test_relu_positive():
+    x = Value(3.0)
+
+    y = x.relu()
+    y.backward()
+
+    assert y.data == 3.0
+    assert x.grad == 1.0
+
+
+def test_relu_negative():
+    x = Value(-3.0)
+
+    y = x.relu()
+    y.backward()
+
+    assert y.data == 0.0
+    assert x.grad == 0.0
+
+
+def test_exp():
+    x = Value(2.0)
+
+    y = x.exp()
+    y.backward()
+
+    assert y.data == pytest.approx(7.38905609893065)
+    assert x.grad == pytest.approx(7.38905609893065)
