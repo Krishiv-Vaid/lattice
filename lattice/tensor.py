@@ -1194,6 +1194,49 @@ class Tensor:
             / self.shape[dim]
         )
 
+
+    def relu(self):
+        result_data = [
+            max(0.0, self[index])
+            for index in self._iter_indices()
+        ]
+
+        out = Tensor._from_storage(
+            data=result_data,
+            shape=self.shape,
+            strides=self._compute_strides(
+                self.shape
+            ),
+            offset=0,
+            requires_grad=self.requires_grad,
+            _children=(self,),
+            _op="relu",
+        )
+
+        if self.requires_grad:
+            def _backward():
+                for index in out._iter_indices():
+                    flat = out._flat_logical_index(
+                        index
+                    )
+
+                    upstream = out.grad[flat]
+
+                    local = (
+                        1.0
+                        if self[index] > 0.0
+                        else 0.0
+                    )
+
+                    self._accumulate_grad(
+                        index,
+                        local * upstream,
+                    )
+
+            out._backward = _backward
+
+        return out
+
     def __add__(self, other):
         return self._elementwise_binary_op(
             other,

@@ -3,6 +3,7 @@ import random
 from lattice.tensor import Tensor
 from lattice.value import Value
 
+
 class Module:
     def parameters(self):
         return []
@@ -38,7 +39,8 @@ class Neuron(Module):
 
     def parameters(self):
         return self.weights + [self.bias]
-    
+
+
 class Linear(Module):
     def __init__(
         self,
@@ -127,6 +129,49 @@ class Linear(Module):
             parameters.append(self.bias)
 
         return parameters
+
+
+class ReLU(Module):
+    def __call__(self, x):
+        if not isinstance(x, Tensor):
+            raise TypeError(
+                "ReLU input must be a Tensor"
+            )
+
+        return x.relu()
+
+    def parameters(self):
+        return []
+
+
+class TensorMSELoss(Module):
+    def __call__(self, prediction, target):
+        if not isinstance(prediction, Tensor):
+            raise TypeError(
+                "prediction must be a Tensor"
+            )
+
+        if not isinstance(target, Tensor):
+            raise TypeError(
+                "target must be a Tensor"
+            )
+
+        if prediction.shape != target.shape:
+            raise ValueError(
+                f"prediction shape "
+                f"{prediction.shape} does not match "
+                f"target shape {target.shape}"
+            )
+
+        difference = prediction - target
+
+        return (
+            difference
+            * difference
+        ).mean()
+
+    def parameters(self):
+        return []
 
 
 class Layer(Module):
@@ -224,6 +269,8 @@ class MSELoss:
 __all__ = [
     "Module",
     "Linear",
+    "ReLU",
+    "TensorMSELoss",
     "Neuron",
     "Layer",
     "MLP",

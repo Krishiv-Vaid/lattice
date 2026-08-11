@@ -1,7 +1,18 @@
-from lattice.nn import Layer, MLP, MSELoss, Module, Neuron
-from lattice.value import Value
+import pytest
+
+from lattice.nn import (
+    Layer,
+    Linear,
+    MLP,
+    MSELoss,
+    Module,
+    Neuron,
+    ReLU,
+    TensorMSELoss,
+)
 from lattice.tensor import Tensor
-from lattice.nn import Linear
+from lattice.value import Value
+
 
 def test_module_has_no_parameters_by_default():
     module = Module()
@@ -20,7 +31,7 @@ def test_neuron_parameter_count():
 def test_neuron_forward():
     neuron = Neuron(
         2,
-        nonlinearity=False
+        nonlinearity=False,
     )
 
     neuron.weights[0].data = 2.0
@@ -40,7 +51,7 @@ def test_neuron_forward():
 def test_neuron_backward():
     neuron = Neuron(
         2,
-        nonlinearity=False
+        nonlinearity=False,
     )
 
     neuron.weights[0].data = 2.0
@@ -65,7 +76,7 @@ def test_neuron_backward():
 def test_neuron_relu():
     neuron = Neuron(
         1,
-        nonlinearity=True
+        nonlinearity=True,
     )
 
     neuron.weights[0].data = -2.0
@@ -80,7 +91,7 @@ def test_layer_output_count():
     layer = Layer(
         num_inputs=2,
         num_outputs=3,
-        nonlinearity=False
+        nonlinearity=False,
     )
 
     inputs = [
@@ -96,7 +107,7 @@ def test_layer_output_count():
 def test_layer_parameter_count():
     layer = Layer(
         num_inputs=2,
-        num_outputs=3
+        num_outputs=3,
     )
 
     assert len(layer.parameters()) == 9
@@ -105,7 +116,7 @@ def test_layer_parameter_count():
 def test_mlp_structure():
     model = MLP(
         num_inputs=2,
-        layer_sizes=[4, 4, 1]
+        layer_sizes=[4, 4, 1],
     )
 
     assert len(model.layers) == 3
@@ -118,7 +129,7 @@ def test_mlp_structure():
 def test_mlp_forward():
     model = MLP(
         num_inputs=2,
-        layer_sizes=[3, 1]
+        layer_sizes=[3, 1],
     )
 
     inputs = [
@@ -134,7 +145,7 @@ def test_mlp_forward():
 def test_zero_grad():
     neuron = Neuron(
         2,
-        nonlinearity=False
+        nonlinearity=False,
     )
 
     x1 = Value(2.0)
@@ -171,7 +182,7 @@ def test_mse_loss():
 
     loss = loss_fn(
         predictions,
-        targets
+        targets,
     )
 
     assert loss.data == 2.5
@@ -184,13 +195,14 @@ def test_mse_loss_backward():
 
     loss = loss_fn(
         [prediction],
-        [5.0]
+        [5.0],
     )
 
     loss.backward()
 
     assert prediction.grad == -4.0
-    
+
+
 def test_tensor_linear_parameters():
     linear = Linear(
         2,
@@ -369,3 +381,101 @@ def test_tensor_module_zero_grad():
     assert linear.bias.grad == [
         0.0,
     ]
+
+
+def test_tensor_relu_module():
+    relu = ReLU()
+
+    x = Tensor([
+        -1.0,
+        0.0,
+        2.0,
+    ])
+
+    output = relu(x)
+
+    assert output.data == [
+        0.0,
+        0.0,
+        2.0,
+    ]
+
+
+def test_tensor_mse_loss_forward():
+    criterion = TensorMSELoss()
+
+    prediction = Tensor([
+        1.0,
+        2.0,
+        3.0,
+    ])
+
+    target = Tensor([
+        2.0,
+        4.0,
+        6.0,
+    ])
+
+    loss = criterion(
+        prediction,
+        target,
+    )
+
+    assert loss.shape == ()
+
+    assert loss.data[0] == pytest.approx(
+    14.0 / 3.0
+)
+
+
+def test_tensor_mse_loss_backward():
+    criterion = TensorMSELoss()
+
+    prediction = Tensor(
+        [
+            1.0,
+            2.0,
+            3.0,
+        ],
+        requires_grad=True,
+    )
+
+    target = Tensor([
+        2.0,
+        4.0,
+        6.0,
+    ])
+
+    loss = criterion(
+        prediction,
+        target,
+    )
+
+    loss.backward()
+
+    assert prediction.grad == [
+        -2.0 / 3.0,
+        -4.0 / 3.0,
+        -2.0,
+    ]
+
+
+def test_tensor_mse_loss_shape_mismatch():
+    criterion = TensorMSELoss()
+
+    prediction = Tensor([
+        1.0,
+        2.0,
+    ])
+
+    target = Tensor([
+        1.0,
+        2.0,
+        3.0,
+    ])
+
+    with pytest.raises(ValueError):
+        criterion(
+            prediction,
+            target,
+        )

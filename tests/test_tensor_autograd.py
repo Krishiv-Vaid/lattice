@@ -1556,3 +1556,77 @@ def test_scalar_leaf_repeated_backward():
     assert x.grad == [
         2.0,
     ]
+    
+def test_relu_forward():
+    x = Tensor([
+        -2.0,
+        -1.0,
+        0.0,
+        1.0,
+        3.0,
+    ])
+
+    y = x.relu()
+
+    assert y.data == [
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        3.0,
+    ]
+
+
+def test_relu_backward():
+    x = Tensor(
+        [
+            -2.0,
+            -1.0,
+            0.0,
+            1.0,
+            3.0,
+        ],
+        requires_grad=True,
+    )
+
+    loss = x.relu().sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        1.0,
+    ]
+
+
+def test_relu_backward_weighted():
+    x = Tensor(
+        [
+            -2.0,
+            1.0,
+            3.0,
+        ],
+        requires_grad=True,
+    )
+
+    weights = Tensor([
+        10.0,
+        20.0,
+        30.0,
+    ])
+
+    loss = (
+        x.relu()
+        * weights
+    ).sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        0.0,
+        20.0,
+        30.0,
+    ]
