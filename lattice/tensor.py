@@ -1,3 +1,5 @@
+import math
+
 class Tensor:
     def __init__(
         self,
@@ -1352,3 +1354,82 @@ class Tensor:
             f"data={self.data}"
             f")"
         )
+        
+    def exp(self):
+        result_data = [
+            math.exp(self[index])
+            for index in self._iter_indices()
+        ]
+
+        out = Tensor._from_storage(
+            data=result_data,
+            shape=self.shape,
+            strides=self._compute_strides(
+                self.shape
+            ),
+            offset=0,
+            requires_grad=self.requires_grad,
+            _children=(self,),
+            _op="exp",
+        )
+
+        if self.requires_grad:
+            def _backward():
+                for index in out._iter_indices():
+                    flat = out._flat_logical_index(
+                        index
+                    )
+
+                    upstream = out.grad[flat]
+
+                    self._accumulate_grad(
+                        index,
+                        out[index] * upstream,
+                    )
+
+            out._backward = _backward
+
+        return out
+
+    def log(self):
+        for index in self._iter_indices():
+            if self[index] <= 0.0:
+                raise ValueError(
+                    "log is only defined for "
+                    "positive tensor values"
+                )
+
+        result_data = [
+            math.log(self[index])
+            for index in self._iter_indices()
+        ]
+
+        out = Tensor._from_storage(
+            data=result_data,
+            shape=self.shape,
+            strides=self._compute_strides(
+                self.shape
+            ),
+            offset=0,
+            requires_grad=self.requires_grad,
+            _children=(self,),
+            _op="log",
+        )
+
+        if self.requires_grad:
+            def _backward():
+                for index in out._iter_indices():
+                    flat = out._flat_logical_index(
+                        index
+                    )
+
+                    upstream = out.grad[flat]
+
+                    self._accumulate_grad(
+                        index,
+                        upstream / self[index],
+                    )
+
+            out._backward = _backward
+
+        return out

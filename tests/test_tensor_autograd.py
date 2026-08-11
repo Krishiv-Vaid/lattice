@@ -1,3 +1,4 @@
+import math
 import pytest
 
 from lattice.tensor import Tensor
@@ -1630,3 +1631,90 @@ def test_relu_backward_weighted():
         20.0,
         30.0,
     ]
+    
+def test_tensor_exp_forward():
+    x = Tensor([
+        0.0,
+        1.0,
+        2.0,
+    ])
+
+    output = x.exp()
+
+    assert output.data == pytest.approx([
+        1.0,
+        math.e,
+        math.e ** 2,
+    ])
+
+
+def test_tensor_exp_backward():
+    x = Tensor(
+        [
+            0.0,
+            1.0,
+            2.0,
+        ],
+        requires_grad=True,
+    )
+
+    loss = x.exp().sum()
+
+    loss.backward()
+
+    assert x.grad == pytest.approx([
+        1.0,
+        math.e,
+        math.e ** 2,
+    ])
+
+
+def test_tensor_log_forward():
+    x = Tensor([
+        1.0,
+        math.e,
+        math.e ** 2,
+    ])
+
+    output = x.log()
+
+    assert output.data == pytest.approx([
+        0.0,
+        1.0,
+        2.0,
+    ])
+
+
+def test_tensor_log_backward():
+    x = Tensor(
+        [
+            1.0,
+            2.0,
+            4.0,
+        ],
+        requires_grad=True,
+    )
+
+    loss = x.log().sum()
+
+    loss.backward()
+
+    assert x.grad == pytest.approx([
+        1.0,
+        0.5,
+        0.25,
+    ])
+
+
+def test_tensor_log_rejects_nonpositive_values():
+    with pytest.raises(ValueError):
+        Tensor([
+            1.0,
+            0.0,
+        ]).log()
+
+    with pytest.raises(ValueError):
+        Tensor([
+            1.0,
+            -1.0,
+        ]).log()
