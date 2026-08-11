@@ -621,7 +621,7 @@ class Tensor:
             for index in self._iter_indices()
         ]
 
-        return Tensor._from_storage(
+        out = Tensor._from_storage(
             data=copied_data,
             shape=self.shape,
             strides=self._compute_strides(
@@ -629,7 +629,27 @@ class Tensor:
             ),
             offset=0,
             requires_grad=self.requires_grad,
+            _children=(self,),
+            _op="contiguous",
         )
+
+        if self.requires_grad:
+            def _backward():
+                for index in out._iter_indices():
+                    flat = out._flat_logical_index(
+                        index
+                    )
+
+                    upstream = out.grad[flat]
+
+                    self._accumulate_grad(
+                        index,
+                        upstream,
+                    )
+
+            out._backward = _backward
+
+        return out
 
     def _elementwise_binary_op(
         self,

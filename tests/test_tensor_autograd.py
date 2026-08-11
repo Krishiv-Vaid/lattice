@@ -1283,3 +1283,146 @@ def test_nested_slice_backward():
         1.0,
         0.0,
     ]
+    
+def test_contiguous_backward_from_transpose():
+    x = Tensor(
+        [
+            [1.0, 2.0, 3.0],
+            [4.0, 5.0, 6.0],
+        ],
+        requires_grad=True,
+    )
+
+    y = x.T.contiguous()
+
+    weights = Tensor([
+        [10.0, 20.0],
+        [30.0, 40.0],
+        [50.0, 60.0],
+    ])
+
+    loss = (y * weights).sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        10.0,
+        30.0,
+        50.0,
+        20.0,
+        40.0,
+        60.0,
+    ]
+
+
+def test_contiguous_backward_from_slice():
+    x = Tensor(
+        [
+            [1.0, 2.0, 3.0],
+            [4.0, 5.0, 6.0],
+            [7.0, 8.0, 9.0],
+        ],
+        requires_grad=True,
+    )
+
+    y = x[1:, 1:].contiguous()
+
+    loss = y.sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        1.0,
+        0.0,
+        1.0,
+        1.0,
+    ]
+
+
+def test_contiguous_then_reshape_backward():
+    x = Tensor(
+        [
+            [1.0, 2.0, 3.0],
+            [4.0, 5.0, 6.0],
+        ],
+        requires_grad=True,
+    )
+
+    y = x.T.contiguous().reshape(6)
+
+    weights = Tensor([
+        10.0,
+        20.0,
+        30.0,
+        40.0,
+        50.0,
+        60.0,
+    ])
+
+    loss = (y * weights).sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        10.0,
+        30.0,
+        50.0,
+        20.0,
+        40.0,
+        60.0,
+    ]
+
+
+def test_contiguous_preserves_gradient_chain():
+    x = Tensor(
+        [
+            [1.0, 2.0],
+            [3.0, 4.0],
+        ],
+        requires_grad=True,
+    )
+
+    y = x.T
+    z = y.contiguous()
+    result = z * z
+
+    loss = result.sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        2.0,
+        4.0,
+        6.0,
+        8.0,
+    ]
+
+
+def test_contiguous_tensor_returns_same_object():
+    x = Tensor(
+        [
+            [1.0, 2.0],
+            [3.0, 4.0],
+        ],
+        requires_grad=True,
+    )
+
+    y = x.contiguous()
+
+    assert y is x
+
+    loss = (y * 2.0).sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+    ]
