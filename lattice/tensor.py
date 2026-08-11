@@ -167,6 +167,92 @@ class Tensor:
 
         return storage_index
 
+    @staticmethod
+    def _broadcast_shape(shape_a, shape_b):
+        result = []
+
+        reversed_a = list(reversed(shape_a))
+        reversed_b = list(reversed(shape_b))
+
+        length = max(
+            len(reversed_a),
+            len(reversed_b),
+        )
+
+        for i in range(length):
+            dim_a = (
+                reversed_a[i]
+                if i < len(reversed_a)
+                else 1
+            )
+
+            dim_b = (
+                reversed_b[i]
+                if i < len(reversed_b)
+                else 1
+            )
+
+            if dim_a == dim_b:
+                result.append(dim_a)
+
+            elif dim_a == 1:
+                result.append(dim_b)
+
+            elif dim_b == 1:
+                result.append(dim_a)
+
+            else:
+                raise ValueError(
+                    f"Shapes {shape_a} and {shape_b} "
+                    "are not broadcastable"
+                )
+
+        return tuple(reversed(result))
+
+    def broadcast_to(self, shape):
+        shape = tuple(shape)
+
+        if len(shape) < self.ndim:
+            raise ValueError(
+                "Cannot broadcast to fewer dimensions"
+            )
+
+        padded_shape = (
+            (1,) * (len(shape) - self.ndim)
+            + self.shape
+        )
+
+        padded_strides = (
+            (0,) * (len(shape) - self.ndim)
+            + self.strides
+        )
+
+        new_strides = []
+
+        for source_dim, target_dim, stride in zip(
+            padded_shape,
+            shape,
+            padded_strides,
+        ):
+            if source_dim == target_dim:
+                new_strides.append(stride)
+
+            elif source_dim == 1:
+                new_strides.append(0)
+
+            else:
+                raise ValueError(
+                    f"Cannot broadcast shape "
+                    f"{self.shape} to {shape}"
+                )
+
+        return Tensor._from_storage(
+            data=self.data,
+            shape=shape,
+            strides=new_strides,
+            offset=self.offset,
+        )
+
     def __getitem__(self, key):
         key = self._normalize_key(key)
 
@@ -331,58 +417,33 @@ class Tensor:
             offset=0,
         )
 
-    @property
-    def T(self):
-        if self.ndim != 2:
-            raise ValueError(
-                ".T is currently supported only "
-                "for 2D tensors"
-            )
-
-        return self.transpose(0, 1)
-
-    @property
-    def ndim(self):
-        return len(self.shape)
-
-    @property
-    def numel(self):
-        if not self.shape:
-            return 1
-
-        total = 1
-
-        for dimension in self.shape:
-            total *= dimension
-
-        return total
-
-    @property
-    def is_contiguous(self):
-        return (
-            self.strides
-            == self._compute_strides(
-                self.shape
-            )
-        )
-        
-    def _elementwise_binary_op(self, other, operation):
+    def _elementwise_binary_op(
+        self,
+        other,
+        operation,
+    ):
         if isinstance(other, Tensor):
-            if self.shape != other.shape:
-                raise ValueError(
-                    "Tensor shapes must match for "
-                    "elementwise operations"
-                )
+            result_shape = self._broadcast_shape(
+                self.shape,
+                other.shape,
+            )
+
+            left = self.broadcast_to(result_shape)
+            right = other.broadcast_to(
+                result_shape
+            )
 
             result_data = [
                 operation(
-                    self[index],
-                    other[index],
+                    left[index],
+                    right[index],
                 )
-                for index in self._iter_indices()
+                for index in left._iter_indices()
             ]
 
         elif isinstance(other, (int, float)):
+            result_shape = self.shape
+
             result_data = [
                 operation(
                     self[index],
@@ -396,9 +457,9 @@ class Tensor:
 
         return Tensor._from_storage(
             data=result_data,
-            shape=self.shape,
+            shape=result_shape,
             strides=self._compute_strides(
-                self.shape
+                result_shape
             ),
             offset=0,
         )
@@ -452,8 +513,43 @@ class Tensor:
         return NotImplemented
 
     def __neg__(self):
-        return self * -1.0    
-    
+        return self * -1.0
+
+    @property
+    def T(self):
+        if self.ndim != 2:
+            raise ValueError(
+                ".T is currently supported only "
+                "for 2D tensors"
+            )
+
+        return self.transpose(0, 1)
+
+    @property
+    def ndim(self):
+        return len(self.shape)
+
+    @property
+    def numel(self):
+        if not self.shape:
+            return 1
+
+        total = 1
+
+        for dimension in self.shape:
+            total *= dimension
+
+        return total
+
+    @property
+    def is_contiguous(self):
+        return (
+            self.strides
+            == self._compute_strides(
+                self.shape
+            )
+        )
+
     def __repr__(self):
         return (
             f"Tensor("

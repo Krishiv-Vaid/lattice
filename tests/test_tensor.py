@@ -873,3 +873,215 @@ def test_elementwise_result_is_contiguous():
     assert result.is_contiguous
     assert result.offset == 0
     assert result.strides == (2, 1)
+    
+def test_broadcast_vector_to_matrix():
+    tensor = Tensor([
+        10.0,
+        20.0,
+        30.0,
+    ])
+
+    broadcasted = tensor.broadcast_to(
+        (2, 3)
+    )
+
+    assert broadcasted.shape == (2, 3)
+    assert broadcasted.strides == (0, 1)
+
+    assert broadcasted[0, 0] == 10.0
+    assert broadcasted[0, 2] == 30.0
+    assert broadcasted[1, 0] == 10.0
+    assert broadcasted[1, 2] == 30.0
+
+    assert broadcasted.data is tensor.data
+
+
+def test_broadcast_singleton_dimension():
+    tensor = Tensor([
+        [10.0],
+        [20.0],
+    ])
+
+    broadcasted = tensor.broadcast_to(
+        (2, 3)
+    )
+
+    assert broadcasted.shape == (2, 3)
+    assert broadcasted.strides == (1, 0)
+
+    assert broadcasted[0, 0] == 10.0
+    assert broadcasted[0, 2] == 10.0
+
+    assert broadcasted[1, 0] == 20.0
+    assert broadcasted[1, 2] == 20.0
+
+
+def test_broadcast_add_vector_to_matrix():
+    matrix = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+    ])
+
+    vector = Tensor([
+        10.0,
+        20.0,
+        30.0,
+    ])
+
+    result = matrix + vector
+
+    assert result.shape == (2, 3)
+
+    assert result.data == [
+        11.0,
+        22.0,
+        33.0,
+        14.0,
+        25.0,
+        36.0,
+    ]
+
+
+def test_broadcast_column_to_matrix():
+    matrix = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+    ])
+
+    column = Tensor([
+        [10.0],
+        [20.0],
+    ])
+
+    result = matrix + column
+
+    assert result.data == [
+        11.0,
+        12.0,
+        13.0,
+        24.0,
+        25.0,
+        26.0,
+    ]
+
+
+def test_broadcast_multiple_dimensions():
+    a = Tensor([
+        [
+            [1.0, 2.0, 3.0],
+        ],
+        [
+            [4.0, 5.0, 6.0],
+        ],
+    ])
+
+    b = Tensor([
+        [10.0],
+        [20.0],
+        [30.0],
+        [40.0],
+    ])
+
+    result = a + b
+
+    assert result.shape == (2, 4, 3)
+
+    assert result[0, 0, 0] == 11.0
+    assert result[0, 3, 2] == 43.0
+    assert result[1, 0, 0] == 14.0
+    assert result[1, 3, 2] == 46.0
+
+
+def test_broadcast_scalar_shaped_tensor():
+    scalar = Tensor(10.0)
+
+    matrix = Tensor([
+        [1.0, 2.0],
+        [3.0, 4.0],
+    ])
+
+    result = matrix + scalar
+
+    assert result.shape == (2, 2)
+
+    assert result.data == [
+        11.0,
+        12.0,
+        13.0,
+        14.0,
+    ]
+
+
+def test_incompatible_broadcast_shapes():
+    a = Tensor([
+        [1.0, 2.0],
+        [3.0, 4.0],
+    ])
+
+    b = Tensor([
+        1.0,
+        2.0,
+        3.0,
+    ])
+
+    with pytest.raises(ValueError):
+        _ = a + b
+
+
+def test_broadcast_to_invalid_shape():
+    tensor = Tensor([
+        1.0,
+        2.0,
+        3.0,
+    ])
+
+    with pytest.raises(ValueError):
+        tensor.broadcast_to(
+            (2, 2)
+        )
+
+
+def test_broadcasted_stride_zero_reuses_storage():
+    tensor = Tensor([
+        10.0,
+        20.0,
+        30.0,
+    ])
+
+    view = tensor.broadcast_to(
+        (2, 3)
+    )
+
+    tensor[1] = 99.0
+
+    assert view[0, 1] == 99.0
+    assert view[1, 1] == 99.0
+
+
+def test_broadcast_with_transpose():
+    matrix = Tensor([
+        [1.0, 2.0],
+        [3.0, 4.0],
+        [5.0, 6.0],
+    ])
+
+    transposed = matrix.T
+
+    vector = Tensor([
+        10.0,
+        20.0,
+        30.0,
+    ])
+
+    result = transposed + vector
+
+    assert result.shape == (2, 3)
+
+    assert result.data == [
+        11.0,
+        23.0,
+        35.0,
+        12.0,
+        24.0,
+        36.0,
+    ]
