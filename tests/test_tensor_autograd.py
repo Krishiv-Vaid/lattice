@@ -926,3 +926,155 @@ def test_matmul_same_tensor_accumulates_gradients():
         9.0,
         13.0,
     ]
+    
+def test_transpose_backward():
+    x = Tensor(
+        [
+            [1.0, 2.0],
+            [3.0, 4.0],
+        ],
+        requires_grad=True,
+    )
+
+    y = x.T
+
+    loss = (y * y).sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        2.0,
+        4.0,
+        6.0,
+        8.0,
+    ]
+
+
+def test_transpose_backward_preserves_index_mapping():
+    x = Tensor(
+        [
+            [1.0, 2.0, 3.0],
+            [4.0, 5.0, 6.0],
+        ],
+        requires_grad=True,
+    )
+
+    weights = Tensor([
+        [10.0, 20.0],
+        [30.0, 40.0],
+        [50.0, 60.0],
+    ])
+
+    loss = (x.T * weights).sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        10.0,
+        30.0,
+        50.0,
+        20.0,
+        40.0,
+        60.0,
+    ]
+
+
+def test_double_transpose_backward():
+    x = Tensor(
+        [
+            [1.0, 2.0],
+            [3.0, 4.0],
+        ],
+        requires_grad=True,
+    )
+
+    y = x.T.T
+
+    loss = (y * 3.0).sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        3.0,
+        3.0,
+        3.0,
+        3.0,
+    ]
+
+
+def test_reshape_backward():
+    x = Tensor(
+        [
+            [1.0, 2.0],
+            [3.0, 4.0],
+        ],
+        requires_grad=True,
+    )
+
+    y = x.reshape(4)
+
+    loss = (y * 3.0).sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        3.0,
+        3.0,
+        3.0,
+        3.0,
+    ]
+
+
+def test_reshape_backward_preserves_logical_order():
+    x = Tensor(
+        [
+            [1.0, 2.0, 3.0],
+            [4.0, 5.0, 6.0],
+        ],
+        requires_grad=True,
+    )
+
+    y = x.reshape(3, 2)
+
+    weights = Tensor([
+        [10.0, 20.0],
+        [30.0, 40.0],
+        [50.0, 60.0],
+    ])
+
+    loss = (y * weights).sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        10.0,
+        20.0,
+        30.0,
+        40.0,
+        50.0,
+        60.0,
+    ]
+
+
+def test_reshape_chain_backward():
+    x = Tensor(
+        [
+            [1.0, 2.0],
+            [3.0, 4.0],
+        ],
+        requires_grad=True,
+    )
+
+    y = x.reshape(4)
+    z = y.reshape(2, 2)
+
+    loss = (z * z).sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        2.0,
+        4.0,
+        6.0,
+        8.0,
+    ]

@@ -445,13 +445,40 @@ class Tensor:
             strides[dim0],
         )
 
-        return Tensor._from_storage(
+        out = Tensor._from_storage(
             data=self.data,
             shape=shape,
             strides=strides,
             offset=self.offset,
             requires_grad=self.requires_grad,
+            _children=(self,),
+            _op="transpose",
         )
+
+        if self.requires_grad:
+            def _backward():
+                for out_index in out._iter_indices():
+                    out_flat = out._flat_logical_index(
+                        out_index
+                    )
+
+                    upstream = out.grad[out_flat]
+
+                    parent_index = list(out_index)
+
+                    parent_index[dim0], parent_index[dim1] = (
+                        parent_index[dim1],
+                        parent_index[dim0],
+                    )
+
+                    self._accumulate_grad(
+                        tuple(parent_index),
+                        upstream,
+                    )
+
+            out._backward = _backward
+
+        return out
 
     def reshape(self, *shape):
         if len(shape) == 1 and isinstance(
@@ -499,13 +526,30 @@ class Tensor:
                 "call contiguous() first"
             )
 
-        return Tensor._from_storage(
+        out = Tensor._from_storage(
             data=self.data,
             shape=shape,
             strides=self._compute_strides(shape),
             offset=self.offset,
             requires_grad=self.requires_grad,
+            _children=(self,),
+            _op="reshape",
         )
+
+        if self.requires_grad:
+            def _backward():
+                for out_index in out._iter_indices():
+                    flat = out._flat_logical_index(
+                        out_index
+                    )
+
+                    upstream = out.grad[flat]
+
+                    self.grad[flat] += upstream
+
+            out._backward = _backward
+
+        return out
 
     def contiguous(self):
         if self.is_contiguous and self.offset == 0:
