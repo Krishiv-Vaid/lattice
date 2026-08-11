@@ -1,6 +1,6 @@
 import random
 
-from lattice.value import Value
+from lattice import Value
 
 
 class Module:
@@ -38,7 +38,12 @@ class Neuron(Module):
 
 
 class Layer(Module):
-    def __init__(self, num_inputs, num_outputs, nonlinearity=True):
+    def __init__(
+        self,
+        num_inputs,
+        num_outputs,
+        nonlinearity=True
+    ):
         self.neurons = [
             Neuron(
                 num_inputs,
@@ -74,7 +79,9 @@ class MLP(Module):
         self.layers = []
 
         for index in range(len(layer_sizes)):
-            is_last_layer = index == len(layer_sizes) - 1
+            is_last_layer = (
+                index == len(layer_sizes) - 1
+            )
 
             layer = Layer(
                 sizes[index],
@@ -113,7 +120,19 @@ class MSELoss:
 
         losses = [
             (prediction - target) ** 2
-            for prediction, target in zip(predictions, targets)
+            for prediction, target in zip(
+                predictions,
+                targets
+            )
         ]
 
         return sum(losses) / len(losses)
+
+
+__all__ = [
+    "Module",
+    "Neuron",
+    "Layer",
+    "MLP",
+    "MSELoss",
+]
