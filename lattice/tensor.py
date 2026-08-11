@@ -5,6 +5,23 @@ class Tensor:
         self.strides = self._compute_strides(self.shape)
         self.offset = 0
 
+    @classmethod
+    def _from_storage(
+        cls,
+        data,
+        shape,
+        strides,
+        offset=0,
+    ):
+        tensor = cls.__new__(cls)
+
+        tensor.data = data
+        tensor.shape = tuple(shape)
+        tensor.strides = tuple(strides)
+        tensor.offset = offset
+
+        return tensor
+
     def _infer_shape(self, data):
         if not isinstance(data, list):
             return ()
@@ -97,6 +114,22 @@ class Tensor:
 
         return storage_index
 
+    def _normalize_dimension(self, dimension):
+        if not isinstance(dimension, int):
+            raise TypeError(
+                "Tensor dimensions must be integers"
+            )
+
+        if dimension < 0:
+            dimension += self.ndim
+
+        if dimension < 0 or dimension >= self.ndim:
+            raise IndexError(
+                "Tensor dimension out of range"
+            )
+
+        return dimension
+
     def __getitem__(self, indices):
         storage_index = self._storage_index(
             indices
@@ -110,6 +143,40 @@ class Tensor:
         )
 
         self.data[storage_index] = float(value)
+
+    def transpose(self, dim0, dim1):
+        dim0 = self._normalize_dimension(dim0)
+        dim1 = self._normalize_dimension(dim1)
+
+        shape = list(self.shape)
+        strides = list(self.strides)
+
+        shape[dim0], shape[dim1] = (
+            shape[dim1],
+            shape[dim0],
+        )
+
+        strides[dim0], strides[dim1] = (
+            strides[dim1],
+            strides[dim0],
+        )
+
+        return Tensor._from_storage(
+            data=self.data,
+            shape=shape,
+            strides=strides,
+            offset=self.offset,
+        )
+
+    @property
+    def T(self):
+        if self.ndim != 2:
+            raise ValueError(
+                ".T is currently supported only "
+                "for 2D tensors"
+            )
+
+        return self.transpose(0, 1)
 
     @property
     def ndim(self):
@@ -132,6 +199,7 @@ class Tensor:
             f"Tensor("
             f"shape={self.shape}, "
             f"strides={self.strides}, "
+            f"offset={self.offset}, "
             f"data={self.data}"
             f")"
         )
