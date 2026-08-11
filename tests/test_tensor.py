@@ -1094,7 +1094,7 @@ def test_sum_all_elements():
 
     result = tensor.sum()
 
-    assert result == 21.0
+    assert result.data == [21.0]
 
 
 def test_mean_all_elements():
@@ -1105,7 +1105,7 @@ def test_mean_all_elements():
 
     result = tensor.mean()
 
-    assert result == 3.5
+    assert result.data == [3.5]
 
 
 def test_sum_dim_zero():
@@ -1216,7 +1216,7 @@ def test_sum_sliced_tensor():
 
     view = tensor[1:, 1:]
 
-    assert view.sum() == 28.0
+    assert view.sum().data == [28.0]
 
 
 def test_sum_broadcasted_tensor():
@@ -1230,7 +1230,7 @@ def test_sum_broadcasted_tensor():
         (2, 3)
     )
 
-    assert view.sum() == 120.0
+    assert view.sum().data == [120.0]
 
 
 def test_three_dimensional_reduction():

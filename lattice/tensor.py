@@ -1,9 +1,27 @@
 class Tensor:
-    def __init__(self, data):
+    def __init__(
+        self,
+        data,
+        requires_grad=False,
+        _children=(),
+        _op="",
+    ):
         self.data = self._flatten(data)
         self.shape = self._infer_shape(data)
         self.strides = self._compute_strides(self.shape)
         self.offset = 0
+
+        self.requires_grad = requires_grad
+
+        self.grad = (
+            [0.0] * self.numel
+            if requires_grad
+            else None
+        )
+
+        self._prev = set(_children)
+        self._op = _op
+        self._backward = lambda: None
 
     @classmethod
     def _from_storage(
@@ -12,6 +30,9 @@ class Tensor:
         shape,
         strides,
         offset=0,
+        requires_grad=False,
+        _children=(),
+        _op="",
     ):
         tensor = cls.__new__(cls)
 
@@ -19,6 +40,18 @@ class Tensor:
         tensor.shape = tuple(shape)
         tensor.strides = tuple(strides)
         tensor.offset = offset
+
+        tensor.requires_grad = requires_grad
+
+        tensor.grad = (
+            [0.0] * tensor.numel
+            if requires_grad
+            else None
+        )
+
+        tensor._prev = set(_children)
+        tensor._op = _op
+        tensor._backward = lambda: None
 
         return tensor
 
@@ -66,6 +99,34 @@ class Tensor:
 
         return tuple(strides)
 
+    @staticmethod
+    def _iter_shape_indices(shape):
+        if not shape:
+            yield ()
+            return
+
+        def recurse(dimension, prefix):
+            if dimension == len(shape):
+                yield tuple(prefix)
+                return
+
+            for index in range(shape[dimension]):
+                prefix.append(index)
+
+                yield from recurse(
+                    dimension + 1,
+                    prefix,
+                )
+
+                prefix.pop()
+
+        yield from recurse(0, [])
+
+    def _iter_indices(self):
+        yield from self._iter_shape_indices(
+            self.shape
+        )
+
     def _normalize_dimension(self, dimension):
         if not isinstance(dimension, int):
             raise TypeError(
@@ -106,60 +167,9 @@ class Tensor:
                 "Too many indices for tensor"
             )
 
-        key = key + (
+        return key + (
             slice(None),
         ) * (self.ndim - len(key))
-
-        return key
-
-    def _iter_indices(self):
-        if self.ndim == 0:
-            yield ()
-            return
-
-        def recurse(dimension, prefix):
-            if dimension == self.ndim:
-                yield tuple(prefix)
-                return
-
-            for index in range(
-                self.shape[dimension]
-            ):
-                prefix.append(index)
-
-                yield from recurse(
-                    dimension + 1,
-                    prefix
-                )
-
-                prefix.pop()
-
-        yield from recurse(0, [])
-
-    @staticmethod
-    def _iter_shape_indices(shape):
-        if not shape:
-            yield ()
-            return
-
-        def recurse(dimension, prefix):
-            if dimension == len(shape):
-                yield tuple(prefix)
-                return
-
-            for index in range(
-                shape[dimension]
-            ):
-                prefix.append(index)
-
-                yield from recurse(
-                    dimension + 1,
-                    prefix
-                )
-
-                prefix.pop()
-
-        yield from recurse(0, [])
 
     def _storage_index(self, indices):
         if not isinstance(indices, tuple):
@@ -191,6 +201,24 @@ class Tensor:
             storage_index += index * stride
 
         return storage_index
+
+    def _flat_logical_index(self, indices):
+        if not self.shape:
+            return 0
+
+        flat_index = 0
+
+        logical_strides = self._compute_strides(
+            self.shape
+        )
+
+        for index, stride in zip(
+            indices,
+            logical_strides,
+        ):
+            flat_index += index * stride
+
+        return flat_index
 
     @staticmethod
     def _broadcast_shape(shape_a, shape_b):
@@ -234,6 +262,20 @@ class Tensor:
 
         return tuple(reversed(result))
 
+    def _accumulate_grad(
+        self,
+        indices,
+        value,
+    ):
+        if not self.requires_grad:
+            return
+
+        flat_index = self._flat_logical_index(
+            indices
+        )
+
+        self.grad[flat_index] += value
+
     def broadcast_to(self, shape):
         shape = tuple(shape)
 
@@ -276,6 +318,7 @@ class Tensor:
             shape=shape,
             strides=new_strides,
             offset=self.offset,
+            requires_grad=self.requires_grad,
         )
 
     def __getitem__(self, key):
@@ -283,7 +326,6 @@ class Tensor:
 
         new_shape = []
         new_strides = []
-
         new_offset = self.offset
 
         contains_slice = False
@@ -319,7 +361,9 @@ class Tensor:
                 )
 
                 new_offset += start * stride
+
                 new_shape.append(length)
+
                 new_strides.append(
                     stride * step
                 )
@@ -338,6 +382,7 @@ class Tensor:
             shape=new_shape,
             strides=new_strides,
             offset=new_offset,
+            requires_grad=self.requires_grad,
         )
 
     def __setitem__(self, indices, value):
@@ -369,6 +414,7 @@ class Tensor:
             shape=shape,
             strides=strides,
             offset=self.offset,
+            requires_grad=self.requires_grad,
         )
 
     def reshape(self, *shape):
@@ -422,6 +468,7 @@ class Tensor:
             shape=shape,
             strides=self._compute_strides(shape),
             offset=self.offset,
+            requires_grad=self.requires_grad,
         )
 
     def contiguous(self):
@@ -440,12 +487,14 @@ class Tensor:
                 self.shape
             ),
             offset=0,
+            requires_grad=self.requires_grad,
         )
 
     def _elementwise_binary_op(
         self,
         other,
         operation,
+        op_name,
     ):
         if isinstance(other, Tensor):
             result_shape = self._broadcast_shape(
@@ -453,7 +502,10 @@ class Tensor:
                 other.shape,
             )
 
-            left = self.broadcast_to(result_shape)
+            left = self.broadcast_to(
+                result_shape
+            )
+
             right = other.broadcast_to(
                 result_shape
             )
@@ -466,9 +518,83 @@ class Tensor:
                 for index in left._iter_indices()
             ]
 
-        elif isinstance(other, (int, float)):
-            result_shape = self.shape
+            requires_grad = (
+                self.requires_grad
+                or other.requires_grad
+            )
 
+            out = Tensor._from_storage(
+                data=result_data,
+                shape=result_shape,
+                strides=self._compute_strides(
+                    result_shape
+                ),
+                offset=0,
+                requires_grad=requires_grad,
+                _children=(self, other),
+                _op=op_name,
+            )
+
+            if requires_grad:
+                if self.shape != result_shape:
+                    raise NotImplementedError(
+                        "Autograd through broadcasting "
+                        "is not implemented yet"
+                    )
+
+                if other.shape != result_shape:
+                    raise NotImplementedError(
+                        "Autograd through broadcasting "
+                        "is not implemented yet"
+                    )
+
+                def _backward():
+                    for index in out._iter_indices():
+                        out_flat = (
+                            out._flat_logical_index(
+                                index
+                            )
+                        )
+
+                        upstream = out.grad[
+                            out_flat
+                        ]
+
+                        if self.requires_grad:
+                            if op_name == "+":
+                                local = 1.0
+
+                            elif op_name == "*":
+                                local = other[index]
+
+                            else:
+                                local = 0.0
+
+                            self._accumulate_grad(
+                                index,
+                                local * upstream,
+                            )
+
+                        if other.requires_grad:
+                            if op_name == "+":
+                                local = 1.0
+
+                            elif op_name == "*":
+                                local = self[index]
+
+                            else:
+                                local = 0.0
+
+                            other._accumulate_grad(
+                                index,
+                                local * upstream,
+                            )
+
+                out._backward = _backward
+
+            return out
+
+        elif isinstance(other, (int, float)):
             result_data = [
                 operation(
                     self[index],
@@ -477,30 +603,55 @@ class Tensor:
                 for index in self._iter_indices()
             ]
 
-        else:
-            return NotImplemented
+            out = Tensor._from_storage(
+                data=result_data,
+                shape=self.shape,
+                strides=self._compute_strides(
+                    self.shape
+                ),
+                offset=0,
+                requires_grad=self.requires_grad,
+                _children=(self,),
+                _op=op_name,
+            )
 
-        return Tensor._from_storage(
-            data=result_data,
-            shape=result_shape,
-            strides=self._compute_strides(
-                result_shape
-            ),
-            offset=0,
-        )
+            if self.requires_grad:
+                def _backward():
+                    for index in out._iter_indices():
+                        flat = (
+                            out._flat_logical_index(
+                                index
+                            )
+                        )
 
-    def _reduce(self, dim, operation, initial):
-        if dim is None:
-            result = initial
+                        upstream = out.grad[flat]
 
-            for index in self._iter_indices():
-                result = operation(
-                    result,
-                    self[index],
-                )
+                        if op_name == "+":
+                            local = 1.0
 
-            return result
+                        elif op_name == "*":
+                            local = float(other)
 
+                        else:
+                            local = 0.0
+
+                        self._accumulate_grad(
+                            index,
+                            local * upstream,
+                        )
+
+                out._backward = _backward
+
+            return out
+
+        return NotImplemented
+
+    def _reduce_forward(
+        self,
+        dim,
+        operation,
+        initial,
+    ):
         dim = self._normalize_dimension(dim)
 
         result_shape = (
@@ -539,35 +690,45 @@ class Tensor:
                 result_shape
             ),
             offset=0,
+            requires_grad=False,
         )
 
-    def sum(self, dim=None):
-        return self._reduce(
-            dim=dim,
-            operation=lambda a, b: a + b,
-            initial=0.0,
-        )
-
-    def mean(self, dim=None):
-        if dim is None:
-            if self.numel == 0:
-                raise ValueError(
-                    "mean of an empty tensor is undefined"
-                )
-
-            return self.sum() / self.numel
-
-        dim = self._normalize_dimension(dim)
-
-        if self.shape[dim] == 0:
+    def backward(self):
+        if self.numel != 1:
             raise ValueError(
-                "mean of an empty dimension is undefined"
+                "backward() currently requires "
+                "a scalar tensor"
             )
 
-        summed = self.sum(dim=dim)
+        if not self.requires_grad:
+            raise ValueError(
+                "Cannot call backward() on a tensor "
+                "that does not require gradients"
+            )
 
-        return summed / self.shape[dim]
-    
+        topo = []
+        visited = set()
+
+        def build_topo(node):
+            if node not in visited:
+                visited.add(node)
+
+                for parent in node._prev:
+                    build_topo(parent)
+
+                topo.append(node)
+
+        build_topo(self)
+
+        self.grad[0] = 1.0
+
+        for node in reversed(topo):
+            node._backward()
+
+    def zero_grad(self):
+        if self.requires_grad:
+            self.grad = [0.0] * self.numel
+
     def matmul(self, other):
         if not isinstance(other, Tensor):
             raise TypeError(
@@ -616,59 +777,144 @@ class Tensor:
             offset=0,
         )
 
-    def __matmul__(self, other):
-        return self.matmul(other)
+    def sum(self, dim=None):
+        if dim is None:
+            total = 0.0
+
+            for index in self._iter_indices():
+                total += self[index]
+
+            out = Tensor(
+                total,
+                requires_grad=self.requires_grad,
+                _children=(self,),
+                _op="sum",
+            )
+
+            if self.requires_grad:
+                def _backward():
+                    upstream = out.grad[0]
+
+                    for index in self._iter_indices():
+                        self._accumulate_grad(
+                            index,
+                            upstream,
+                        )
+
+                out._backward = _backward
+
+            return out
+
+        dim = self._normalize_dimension(dim)
+
+        if self.requires_grad:
+            raise NotImplementedError(
+                "Autograd for dimension-specific "
+                "reductions is not implemented yet"
+            )
+
+        return self._reduce_forward(
+            dim=dim,
+            operation=lambda a, b: a + b,
+            initial=0.0,
+        )
+
+    def mean(self, dim=None):
+        if dim is None:
+            if self.numel == 0:
+                raise ValueError(
+                    "mean of an empty tensor is undefined"
+                )
+
+            return self.sum() / self.numel
+
+        dim = self._normalize_dimension(dim)
+
+        if self.shape[dim] == 0:
+            raise ValueError(
+                "mean of an empty dimension is undefined"
+            )
+
+        if self.requires_grad:
+            raise NotImplementedError(
+                "Autograd for dimension-specific "
+                "reductions is not implemented yet"
+            )
+
+        return (
+            self.sum(dim=dim)
+            / self.shape[dim]
+        )
 
     def __add__(self, other):
         return self._elementwise_binary_op(
             other,
             lambda a, b: a + b,
+            "+",
         )
 
     def __radd__(self, other):
         return self + other
 
-    def __sub__(self, other):
-        return self._elementwise_binary_op(
-            other,
-            lambda a, b: a - b,
-        )
-
-    def __rsub__(self, other):
-        if isinstance(other, (int, float)):
-            return self._elementwise_binary_op(
-                other,
-                lambda a, b: b - a,
-            )
-
-        return NotImplemented
-
     def __mul__(self, other):
         return self._elementwise_binary_op(
             other,
             lambda a, b: a * b,
+            "*",
         )
 
     def __rmul__(self, other):
         return self * other
 
+    def __sub__(self, other):
+        return self + (-other)
+
+    def __rsub__(self, other):
+        return (-self) + other
+
     def __truediv__(self, other):
-        return self._elementwise_binary_op(
-            other,
-            lambda a, b: a / b,
-        )
+        if isinstance(other, (int, float)):
+            return self * (1.0 / other)
+
+        if isinstance(other, Tensor):
+            if (
+                self.requires_grad
+                or other.requires_grad
+            ):
+                raise NotImplementedError(
+                    "Tensor/Tensor division autograd "
+                    "is not implemented yet"
+                )
+
+            return self._elementwise_binary_op(
+                other,
+                lambda a, b: a / b,
+                "/",
+            )
+
+        return NotImplemented
 
     def __rtruediv__(self, other):
         if isinstance(other, (int, float)):
+            if self.requires_grad:
+                raise NotImplementedError(
+                    "Scalar/Tensor division autograd "
+                    "is not implemented yet"
+                )
+
             return self._elementwise_binary_op(
                 other,
                 lambda a, b: b / a,
+                "/",
             )
 
         return NotImplemented
 
     def __neg__(self):
         return self * -1.0
+
+    def __matmul__(self, other):
+        return self.matmul(other)
 
     @property
     def T(self):
@@ -711,6 +957,7 @@ class Tensor:
             f"shape={self.shape}, "
             f"strides={self.strides}, "
             f"offset={self.offset}, "
+            f"requires_grad={self.requires_grad}, "
             f"data={self.data}"
             f")"
         )
