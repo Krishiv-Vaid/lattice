@@ -21,6 +21,8 @@ public:
     const std::vector<std::size_t>&
     strides() const noexcept;
 
+    std::size_t offset() const noexcept;
+
     std::size_t ndim() const noexcept;
 
     std::size_t numel() const noexcept;
@@ -35,9 +37,29 @@ public:
         const std::vector<std::size_t>& indices
     ) const;
 
+    Tensor transpose(
+        std::size_t dim0,
+        std::size_t dim1
+    ) const;
+
+    Tensor reshape(
+        const std::vector<std::size_t>& shape
+    ) const;
+
 private:
+    Tensor(
+        std::shared_ptr<Storage> storage,
+        const std::vector<std::size_t>& shape,
+        const std::vector<std::size_t>& strides,
+        std::size_t offset
+    );
+
     static std::vector<std::size_t>
     compute_strides(
+        const std::vector<std::size_t>& shape
+    );
+
+    static std::size_t compute_numel(
         const std::vector<std::size_t>& shape
     );
 

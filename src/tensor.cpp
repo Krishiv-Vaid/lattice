@@ -1,6 +1,7 @@
 #include "lattice/tensor.hpp"
 
 #include <stdexcept>
+#include <utility>
 
 namespace lattice {
 
@@ -22,6 +23,17 @@ Tensor::Tensor(
     }
 }
 
+Tensor::Tensor(
+    std::shared_ptr<Storage> storage,
+    const std::vector<std::size_t>& shape,
+    const std::vector<std::size_t>& strides,
+    std::size_t offset
+)
+    : storage_(std::move(storage)),
+      shape_(shape),
+      strides_(strides),
+      offset_(offset) {}
+
 const std::vector<std::size_t>&
 Tensor::shape() const noexcept {
     return shape_;
@@ -32,22 +44,16 @@ Tensor::strides() const noexcept {
     return strides_;
 }
 
+std::size_t Tensor::offset() const noexcept {
+    return offset_;
+}
+
 std::size_t Tensor::ndim() const noexcept {
     return shape_.size();
 }
 
 std::size_t Tensor::numel() const noexcept {
-    if (shape_.empty()) {
-        return 1;
-    }
-
-    std::size_t total = 1;
-
-    for (const auto dimension : shape_) {
-        total *= dimension;
-    }
-
-    return total;
+    return compute_numel(shape_);
 }
 
 bool Tensor::is_contiguous() const noexcept {
@@ -71,6 +77,66 @@ const double& Tensor::at(
     return (*storage_)[
         storage_index(indices)
     ];
+}
+
+Tensor Tensor::transpose(
+    std::size_t dim0,
+    std::size_t dim1
+) const {
+    if (
+        dim0 >= ndim()
+        || dim1 >= ndim()
+    ) {
+        throw std::out_of_range(
+            "Tensor dimension out of range"
+        );
+    }
+
+    auto new_shape = shape_;
+    auto new_strides = strides_;
+
+    std::swap(
+        new_shape[dim0],
+        new_shape[dim1]
+    );
+
+    std::swap(
+        new_strides[dim0],
+        new_strides[dim1]
+    );
+
+    return Tensor(
+        storage_,
+        new_shape,
+        new_strides,
+        offset_
+    );
+}
+
+Tensor Tensor::reshape(
+    const std::vector<std::size_t>& shape
+) const {
+    if (!is_contiguous()) {
+        throw std::invalid_argument(
+            "Cannot reshape a non-contiguous tensor"
+        );
+    }
+
+    if (
+        compute_numel(shape)
+        != numel()
+    ) {
+        throw std::invalid_argument(
+            "Reshape cannot change number of elements"
+        );
+    }
+
+    return Tensor(
+        storage_,
+        shape,
+        compute_strides(shape),
+        offset_
+    );
 }
 
 std::vector<std::size_t>
@@ -99,10 +165,31 @@ Tensor::compute_strides(
     return strides;
 }
 
+std::size_t Tensor::compute_numel(
+    const std::vector<std::size_t>& shape
+) {
+    if (shape.empty()) {
+        return 1;
+    }
+
+    std::size_t total = 1;
+
+    for (
+        const auto dimension : shape
+    ) {
+        total *= dimension;
+    }
+
+    return total;
+}
+
 std::size_t Tensor::storage_index(
     const std::vector<std::size_t>& indices
 ) const {
-    if (indices.size() != shape_.size()) {
+    if (
+        indices.size()
+        != shape_.size()
+    ) {
         throw std::invalid_argument(
             "Incorrect number of tensor indices"
         );
