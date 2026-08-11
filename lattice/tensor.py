@@ -16,7 +16,9 @@ class Tensor:
 
         for item in data:
             if self._infer_shape(item) != first_shape:
-                raise ValueError("Tensor data must be rectangular")
+                raise ValueError(
+                    "Tensor data must be rectangular"
+                )
 
         return (len(data),) + first_shape
 
@@ -27,7 +29,9 @@ class Tensor:
         flattened = []
 
         for item in data:
-            flattened.extend(self._flatten(item))
+            flattened.extend(
+                self._flatten(item)
+            )
 
         return flattened
 
@@ -38,9 +42,74 @@ class Tensor:
         strides = [1]
 
         for size in reversed(shape[1:]):
-            strides.insert(0, strides[0] * size)
+            strides.insert(
+                0,
+                strides[0] * size
+            )
 
         return tuple(strides)
+
+    def _normalize_indices(self, indices):
+        if not isinstance(indices, tuple):
+            indices = (indices,)
+
+        if len(indices) != self.ndim:
+            raise IndexError(
+                f"Expected {self.ndim} indices, "
+                f"got {len(indices)}"
+            )
+
+        normalized = []
+
+        for index, dimension_size in zip(
+            indices,
+            self.shape
+        ):
+            if not isinstance(index, int):
+                raise TypeError(
+                    "Tensor indices must be integers"
+                )
+
+            if index < 0:
+                index += dimension_size
+
+            if index < 0 or index >= dimension_size:
+                raise IndexError(
+                    "Tensor index out of range"
+                )
+
+            normalized.append(index)
+
+        return tuple(normalized)
+
+    def _storage_index(self, indices):
+        indices = self._normalize_indices(
+            indices
+        )
+
+        storage_index = self.offset
+
+        for index, stride in zip(
+            indices,
+            self.strides
+        ):
+            storage_index += index * stride
+
+        return storage_index
+
+    def __getitem__(self, indices):
+        storage_index = self._storage_index(
+            indices
+        )
+
+        return self.data[storage_index]
+
+    def __setitem__(self, indices, value):
+        storage_index = self._storage_index(
+            indices
+        )
+
+        self.data[storage_index] = float(value)
 
     @property
     def ndim(self):
