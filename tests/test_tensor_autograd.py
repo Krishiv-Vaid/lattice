@@ -1426,3 +1426,133 @@ def test_contiguous_tensor_returns_same_object():
         2.0,
         2.0,
     ]
+def test_repeated_backward_accumulates_leaf_gradients():
+    x = Tensor(
+        [1.0, 2.0, 3.0],
+        requires_grad=True,
+    )
+
+    loss = (x * x).sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        2.0,
+        4.0,
+        6.0,
+    ]
+
+    loss.backward()
+
+    assert x.grad == [
+        4.0,
+        8.0,
+        12.0,
+    ]
+
+
+def test_zero_grad_between_backward_passes():
+    x = Tensor(
+        [1.0, 2.0, 3.0],
+        requires_grad=True,
+    )
+
+    loss = (x * x).sum()
+
+    loss.backward()
+
+    x.zero_grad()
+
+    loss.backward()
+
+    assert x.grad == [
+        2.0,
+        4.0,
+        6.0,
+    ]
+
+
+def test_shared_graph_branch_accumulates_gradient():
+    x = Tensor(
+        [1.0, 2.0, 3.0],
+        requires_grad=True,
+    )
+
+    squared = x * x
+    doubled = x * 2.0
+
+    loss = (
+        squared
+        + doubled
+    ).sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        4.0,
+        6.0,
+        8.0,
+    ]
+
+
+def test_explicit_broadcast_to_backward():
+    x = Tensor(
+        [10.0, 20.0, 30.0],
+        requires_grad=True,
+    )
+
+    y = x.broadcast_to(
+        (2, 3)
+    )
+
+    loss = y.sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        2.0,
+        2.0,
+        2.0,
+    ]
+
+
+def test_explicit_broadcast_singleton_backward():
+    x = Tensor(
+        [
+            [10.0],
+            [20.0],
+        ],
+        requires_grad=True,
+    )
+
+    y = x.broadcast_to(
+        (2, 3)
+    )
+
+    weights = Tensor([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+    ])
+
+    loss = (y * weights).sum()
+
+    loss.backward()
+
+    assert x.grad == [
+        6.0,
+        15.0,
+    ]
+
+
+def test_scalar_leaf_repeated_backward():
+    x = Tensor(
+        5.0,
+        requires_grad=True,
+    )
+
+    x.backward()
+    x.backward()
+
+    assert x.grad == [
+        2.0,
+    ]

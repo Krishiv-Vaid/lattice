@@ -349,13 +349,44 @@ class Tensor:
                     f"{self.shape} to {shape}"
                 )
 
-        return Tensor._from_storage(
+        out = Tensor._from_storage(
             data=self.data,
             shape=shape,
             strides=new_strides,
             offset=self.offset,
             requires_grad=self.requires_grad,
+            _children=(self,),
+            _op="broadcast",
         )
+
+        if self.requires_grad:
+            def _backward():
+                for out_index in out._iter_indices():
+                    out_flat = (
+                        out._flat_logical_index(
+                            out_index
+                        )
+                    )
+
+                    upstream = out.grad[
+                        out_flat
+                    ]
+
+                    parent_index = (
+                        self._broadcast_index(
+                            out_index,
+                            self.shape,
+                        )
+                    )
+
+                    self._accumulate_grad(
+                        parent_index,
+                        upstream,
+                    )
+
+            out._backward = _backward
+
+        return out
 
     def __getitem__(self, key):
         key = self._normalize_key(key)
@@ -883,7 +914,29 @@ class Tensor:
 
         build_topo(self)
 
-        self.grad[0] = 1.0
+        # Intermediate graph nodes must start each
+        # backward pass with fresh gradients.
+        #
+        # Leaf tensors intentionally keep their
+        # gradients so repeated backward() calls
+        # accumulate into them.
+        for node in topo:
+            if (
+                node.requires_grad
+                and node._prev
+            ):
+                node.grad = [
+                    0.0
+                ] * node.numel
+
+        # Seed dL/dL = 1.
+        #
+        # If the root itself is a leaf scalar,
+        # accumulate just like any other leaf.
+        if self._prev:
+            self.grad[0] = 1.0
+        else:
+            self.grad[0] += 1.0
 
         for node in reversed(topo):
             node._backward()
